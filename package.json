@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "express-rate-limit": "^7.5.0",
     "formidable": "^2.0.1",
     "react-dom": "^19.0.0",
     "react-scripts": "^5.0.1",
