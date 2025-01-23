@@ -1,19 +1,35 @@
 import formidable from 'formidable';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import fs from 'fs';
-import rateLimit from 'express-rate-limit';
 
 const mySecret = process.env.GOOGLE_API_KEY;
 const genAI = new GoogleGenerativeAI(mySecret);
 
-// Rate limiting configuration
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // limit each IP to 50 requests per windowMs
-    message: 'Too many requests, please try again later.',
-    standardHeaders: true,
-    legacyHeaders: false,
-});
+// Rate limiting using an in-memory store (simple approach for Vercel)
+const requestCounts = new Map();
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+const MAX_REQUESTS_PER_WINDOW = 50;
+
+function rateLimit(ip) {
+    const now = Date.now();
+    const existingEntry = requestCounts.get(ip) || { count: 0, resetTime: now + RATE_LIMIT_WINDOW };
+
+    // Clear old entries
+    if (now > existingEntry.resetTime) {
+        existingEntry.count = 0;
+        existingEntry.resetTime = now + RATE_LIMIT_WINDOW;
+    }
+
+    // Check if limit is exceeded
+    if (existingEntry.count >= MAX_REQUESTS_PER_WINDOW) {
+        return false;
+    }
+
+    // Increment count
+    existingEntry.count += 1;
+    requestCounts.set(ip, existingEntry);
+    return true;
+}
 
 const imageModel = genAI.getGenerativeModel({
     model: "gemini-1.5-flash",
@@ -59,12 +75,14 @@ const textModel = genAI.getGenerativeModel({
     ],
 });
 
-const generationConfig = {
-    temperature: 0,
-    topK: 1,
-    topP: 1,
-    maxOutputTokens: 2048,
-};
+// Allowed image mime types
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+// Maximum file size (5MB)
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+// Maximum text input length
+const MAX_TEXT_LENGTH = 1000;
 
 // Function to convert file to base64
 function fileToGenerativePart(path, mimeType) {
@@ -76,15 +94,6 @@ function fileToGenerativePart(path, mimeType) {
     };
 }
 
-// Allowed image mime types
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
-// Maximum file size (5MB)
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
-
-// Maximum text input length
-const MAX_TEXT_LENGTH = 1000;
-
 export const config = {
   api: {
     bodyParser: false,
@@ -92,8 +101,15 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // Apply rate limiting
-  await limiter(req, res);
+  // Get client IP (works with Vercel)
+  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+
+  // Rate limiting
+  if (!rateLimit(ip)) {
+    return res.status(429).json({ 
+      error: 'Too many requests. Please try again later.' 
+    });
+  }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
@@ -149,8 +165,8 @@ export default async function handler(req, res) {
         let result;
         if (image) {
             // Save the uploaded image temporarily
-            const tempImagePath = `./temp-${image.originalname}`;
-            fs.writeFileSync(tempImagePath, image.buffer);
+            const tempImagePath = `/tmp/temp-${image.originalname}`;
+            fs.writeFileSync(tempImagePath, fs.readFileSync(image.filepath));
 
             // Prepare the image parts
             const imageParts = [

@@ -22,12 +22,12 @@ function App() {
                 body: formData
             });
             
+            const data = await response.json();
+            
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                throw new Error(data.error || `HTTP error! status: ${response.status}`);
             }
             
-            const data = await response.json();
             setOutputText(data.response);
         } catch (error) {
             console.error("There was an error", error);
