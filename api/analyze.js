@@ -196,13 +196,22 @@ export default async function handler(req, res) {
         // In your API route
         for await (const chunk of result.stream) {
           try {
-            const parsedChunk = JSON.parse(chunk);
-            const textContent = parsedChunk.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            // Ensure chunk is a string before parsing
+            const chunkString = typeof chunk === 'object' ? JSON.stringify(chunk) : chunk.toString();
+            
+            // Parse the chunk
+            const parsedChunk = JSON.parse(chunkString);
+            
+            // Extract text content safely
+            const textContent = parsedChunk?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            
             if (textContent) {
               res.write(`data: ${JSON.stringify({ chunk: textContent })}\n\n`);
             }
           } catch (error) {
-            console.error('Parsing error:', error);
+            console.error('Streaming error:', error, chunk);
+            // Write error as a fallback
+            res.write(`data: ${JSON.stringify({ chunk: 'Error processing stream' })}\n\n`);
           }
         }
 
