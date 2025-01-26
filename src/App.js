@@ -24,28 +24,27 @@ function App() {
             body: formData
           });
       
-          // Create a reader for streaming
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
+          let fullResponse = '';
       
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
       
             const chunk = decoder.decode(value);
-            // Split the chunk by event stream delimiter
-            const events = chunk.split('\n\n');
-            
+            const events = chunk.split('\n\n')
+              .filter(event => event.startsWith('data: '));
+      
             events.forEach(event => {
-              // Remove the 'data: ' prefix
-              if (event.startsWith('data: ')) {
-                try {
-                  const parsedChunk = JSON.parse(event.slice(6));
-                  // Update output text incrementally
-                  setOutputText(prev => prev + (parsedChunk.chunk || ''));
-                } catch (parseError) {
-                  console.error('Parsing error:', parseError);
+              try {
+                const parsedChunk = JSON.parse(event.slice(6));
+                if (parsedChunk.chunk) {
+                  fullResponse += parsedChunk.chunk;
+                  setOutputText(fullResponse);
                 }
+              } catch (parseError) {
+                console.error('Parsing error:', parseError, event);
               }
             });
           }
