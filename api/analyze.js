@@ -193,7 +193,7 @@ export default async function handler(req, res) {
 
         // Stream the response back to the client
         for await (const chunk of result.stream) {
-          res.write(`data: ${JSON.stringify({ chunk: chunk.toString() })}\n\n`);
+          res.write(`data: ${JSON.stringify({ chunk: chunk })}\n\n`);
         }
 
         res.end();

@@ -42,7 +42,7 @@ function App() {
                 try {
                   const parsedChunk = JSON.parse(event.slice(6));
                   // Update output text incrementally
-                  setOutputText(prev => prev + (parsedChunk.chunk || parsedChunk.error || ''));
+                  setOutputText(prev => prev + (parsedChunk.chunk || ''));
                 } catch (parseError) {
                   console.error('Parsing error:', parseError);
                 }
