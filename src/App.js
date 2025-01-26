@@ -26,13 +26,27 @@ function App() {
       
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
+          let fullResponse = '';
       
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
       
             const chunk = decoder.decode(value);
-            console.log('Received chunk:', chunk); // Log received chunk
+            const events = chunk.split('\n\n')
+              .filter(event => event.startsWith('data: '));
+      
+            events.forEach(event => {
+              try {
+                const parsedChunk = JSON.parse(event.slice(6));
+                if (parsedChunk.chunk) {
+                  fullResponse += parsedChunk.chunk;
+                  setOutputText(fullResponse);
+                }
+              } catch (parseError) {
+                console.error('Parsing error:', parseError);
+              }
+            });
           }
         } catch (error) {
           console.error("Streaming error", error);

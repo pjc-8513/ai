@@ -195,9 +195,15 @@ export default async function handler(req, res) {
         // In your API route
         // In your API route
         for await (const chunk of result.stream) {
-          console.log('Raw chunk type:', typeof chunk, chunk);
-          const chunkText = typeof chunk === 'object' ? JSON.stringify(chunk) : chunk.toString();
-          res.write(`data: ${JSON.stringify({ chunk: chunkText })}\n\n`);
+          try {
+            const parsedChunk = JSON.parse(chunk);
+            const textContent = parsedChunk.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (textContent) {
+              res.write(`data: ${JSON.stringify({ chunk: textContent })}\n\n`);
+            }
+          } catch (error) {
+            console.error('Parsing error:', error);
+          }
         }
 
         res.end();
