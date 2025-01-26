@@ -1,6 +1,6 @@
 import { createParser } from 'eventsource-parser';
 import formidable from 'formidable';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import fs from 'fs';
 
 const mySecret = process.env.GOOGLE_API_KEY;
