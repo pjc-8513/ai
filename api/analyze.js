@@ -193,14 +193,15 @@ export default async function handler(req, res) {
 
         // Stream the response back to the client
         for await (const chunk of result.stream) {
-            res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+          res.write(`data: ${JSON.stringify({ chunk: chunk.toString() })}\n\n`);
         }
 
         res.end();
     } catch (error) {
       console.error("Error calling Gemini API: ", error);
-      res.write(`data: ${JSON.stringify({ error: "An error occurred while analyzing the input" })}\n\n`);
-      res.end();
+     // res.write(`data: ${JSON.stringify({ error: "An error occurred while analyzing the input" })}\n\n`);
+     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+     res.end();
     }
   } catch (error) {
     console.error('Error processing request:', error);

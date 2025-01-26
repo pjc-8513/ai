@@ -33,10 +33,21 @@ function App() {
             if (done) break;
       
             const chunk = decoder.decode(value);
-            const parsedChunk = JSON.parse(chunk);
+            // Split the chunk by event stream delimiter
+            const events = chunk.split('\n\n');
             
-            // Update output text incrementally
-            setOutputText(prev => prev + parsedChunk.chunk);
+            events.forEach(event => {
+              // Remove the 'data: ' prefix
+              if (event.startsWith('data: ')) {
+                try {
+                  const parsedChunk = JSON.parse(event.slice(6));
+                  // Update output text incrementally
+                  setOutputText(prev => prev + (parsedChunk.chunk || parsedChunk.error || ''));
+                } catch (parseError) {
+                  console.error('Parsing error:', parseError);
+                }
+              }
+            });
           }
         } catch (error) {
           console.error("Streaming error", error);
