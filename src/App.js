@@ -11,31 +11,40 @@ function App() {
 
     const handleAnalyze = async () => {
         setLoading(true);
+        setOutputText('');
         try {
-            const formData = new FormData();
-            formData.append('text', inputText);
-            if (image) {
-                formData.append('image', image);
-            }
-            const response = await fetch('/api/analyze', {
-                method: 'POST',
-                body: formData
-            });
+          const formData = new FormData();
+          formData.append('text', inputText);
+          if (image) {
+            formData.append('image', image);
+          }
+      
+          const response = await fetch('/api/analyze', {
+            method: 'POST',
+            body: formData
+          });
+      
+          // Create a reader for streaming
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+      
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+      
+            const chunk = decoder.decode(value);
+            const parsedChunk = JSON.parse(chunk);
             
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || `HTTP error! status: ${response.status}`);
-            }
-            
-            setOutputText(data.response);
+            // Update output text incrementally
+            setOutputText(prev => prev + parsedChunk.chunk);
+          }
         } catch (error) {
-            console.error("There was an error", error);
-            setOutputText(error.message || 'Error analyzing input. Please try again.');
+          console.error("Streaming error", error);
+          setOutputText(error.message || 'Error analyzing input');
         } finally {
-            setLoading(false);
+          setLoading(false);
         }
-    };
+      };
 
     const handleImageChange = (event) => {
         const file = event.target.files[0];

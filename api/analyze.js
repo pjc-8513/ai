@@ -1,5 +1,6 @@
+import { createParser } from 'eventsource-parser';
 import formidable from 'formidable';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 
 const mySecret = process.env.GOOGLE_API_KEY;
@@ -159,6 +160,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "No image or text was provided" });
     }
 
+    // Set up streaming response
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-open'
+    });
+
     try {
         const prompt = `Cataloging Foreign Language Resource\nInstruction\nAs a helpful professional Catalog Librarian, analyze the provided ${image ? 'image' : 'text'} of a foreign language resource and provide a structured response with the following cataloging information:\nLanguage of resource: Language of the text\nRequired Fields\nTitle: Original language, English translation, and transliteration (if non-Latin script)\nSubtitle: Original language, English translation, and transliteration (if non-Latin script)\nEdition statement: Original langugae, English translation, and transliteration (if non-Latin script)\nAuthor: Original language, English translation, and transliteration (if non-Latin script)\nIllustrator: Original language, English translation, and transliteration (if non-Latin script)\nPublication Information: Original language, English translation\nSummary: Original language, English translation\nGuidelines\nIf a field is not present in the ${image ? 'image' : 'text'}, indicate \"Not Available\"\nUse the Library of Congress transliteration chart for non-Latin scripts (RDA guidelines)\nProvide transliterations in a format suitable for a linked field in a MARC Bibliographic record\nResponse Format\nUse a structured format, such as:\nTitle: [Original Language] / [English Translation] / [Transliteration]\nSubtitle: [Original Language] / [English Translation] / [Transliteration]\nAuthor: [Original Language] / [English Translation] / [Transliteration]\nIllustrator: [Original Language] / [English Translation] / [Transliteration]\nPublication Information: [Original Language] / [English Translation]\nSummary: [Original Language] / [English Translation]\nProvide your response in this format to facilitate accurate cataloging.`;
 
@@ -173,26 +181,29 @@ export default async function handler(req, res) {
                 fileToGenerativePart(tempImagePath, image.mimetype),
             ];
 
-            // Call the Gemini API with image
-            result = await imageModel.generateContent([prompt, ...imageParts]);
+            // Call the Gemini API with image streaming
+            result = await imageModel.generateContentStream([prompt, ...imageParts]);
 
             // Delete the temporary image
             fs.unlinkSync(tempImagePath);
         } else {
-            // Call the Gemini API with text
-            result = await textModel.generateContent([prompt, text]);
+            // Call the Gemini API with text streaming
+            result = await textModel.generateContentStream([prompt, text]);
         }
 
-        const response = await result.response;
-        const responseText = response.text();
+        // Stream the response back to the client
+        for await (const chunk of result.stream) {
+            res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+        }
 
-      return res.status(200).json({ response: responseText });
+        res.end();
     } catch (error) {
       console.error("Error calling Gemini API: ", error);
-      return res.status(500).json({ error: "An error occurred while analyzing the input" });
+      res.write(`data: ${JSON.stringify({ error: "An error occurred while analyzing the input" })}\n\n`);
+      res.end();
     }
   } catch (error) {
     console.error('Error processing request:', error);
-    return res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 }
