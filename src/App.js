@@ -15,6 +15,7 @@ function App() {
         try {
             const formData = new FormData();
             formData.append('text', inputText);
+            formData.append('mode', mode); // Add mode to formData
             if (mode === 'translator' && image) {
                 formData.append('image', image);
             }

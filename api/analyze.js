@@ -95,6 +95,49 @@ function fileToGenerativePart(path, mimeType) {
     };
 }
 
+// Define prompts for different modes
+const PROMPTS = {
+  translator: `Cataloging Foreign Language Resource\nInstruction\nAs a helpful professional Catalog Librarian, analyze the provided ${image ? 'image' : 'text'} of a foreign language resource and provide a structured response with the following cataloging information...`,
+  
+  coder: `You are an expert Python programmer specializing in library catalog systems and MARC record manipulation using pymarc. Your task is to create Python scripts that help catalog librarians manage MARC data efficiently.
+
+Key Requirements:
+1. Use modern pymarc syntax for field creation and manipulation
+2. Always use add_ordered_field() instead of add_field()
+3. Follow the current best practice for creating fields with subfields:
+ - Use pymarc.Field for field creation
+ - Use pymarc.Subfield for subfield creation
+ - Never manipulate subfield text directly in add_field
+
+Example of correct field creation:
+python
+field = pymarc.Field(
+  tag="800",
+  indicators=["1", " "],
+  subfields=[
+      pymarc.Subfield("a", "Author Name"),
+      pymarc.Subfield("t", "Series Title"),
+      pymarc.Subfield("v", "Volume Info")
+  ]
+)
+record.add_ordered_field(field)
+
+
+Based on the following request, provide a complete, working Python script using pymarc:
+
+${text}
+
+Your response should include:
+1. All necessary imports
+2. Clear comments explaining the logic
+3. Error handling for file operations
+4. Proper pymarc field creation syntax
+5. Use of add_ordered_field()
+6. Sample usage example
+
+Provide the complete script with no truncation.`
+};
+
 export const config = {
   api: {
     bodyParser: false,
@@ -131,6 +174,8 @@ export default async function handler(req, res) {
 
     // Validate text input length
     const text = fields.text ? fields.text.trim() : '';
+    const mode = fields.mode || 'translator';
+
     if (text.length > MAX_TEXT_LENGTH) {
       return res.status(400).json({ 
         error: `Text input too long. Maximum ${MAX_TEXT_LENGTH} characters allowed.` 
@@ -140,7 +185,7 @@ export default async function handler(req, res) {
     const image = files.image;
 
     // Validate image if uploaded
-    if (image) {
+    if (mode === 'translator' && image) {
       // Check file type
       if (!ALLOWED_IMAGE_TYPES.includes(image.mimetype)) {
         return res.status(400).json({ 
@@ -168,10 +213,11 @@ export default async function handler(req, res) {
     });
 
     try {
-        const prompt = `Cataloging Foreign Language Resource\nInstruction\nAs a helpful professional Catalog Librarian, analyze the provided ${image ? 'image' : 'text'} of a foreign language resource and provide a structured response with the following cataloging information:\nLanguage of resource: Language of the text\nRequired Fields\nTitle: Original language, English translation, and transliteration (if non-Latin script)\nSubtitle: Original language, English translation, and transliteration (if non-Latin script)\nEdition statement: Original langugae, English translation, and transliteration (if non-Latin script)\nAuthor: Original language, English translation, and transliteration (if non-Latin script)\nIllustrator: Original language, English translation, and transliteration (if non-Latin script)\nPublication Information: Original language, English translation\nSummary: Original language, English translation\nGuidelines\nIf a field is not present in the ${image ? 'image' : 'text'}, indicate \"Not Available\"\nUse the Library of Congress transliteration chart for non-Latin scripts (RDA guidelines)\nProvide transliterations in a format suitable for a linked field in a MARC Bibliographic record\nResponse Format\nUse a structured format, such as:\nTitle: [Original Language] / [English Translation] / [Transliteration]\nSubtitle: [Original Language] / [English Translation] / [Transliteration]\nAuthor: [Original Language] / [English Translation] / [Transliteration]\nIllustrator: [Original Language] / [English Translation] / [Transliteration]\nPublication Information: [Original Language] / [English Translation]\nSummary: [Original Language] / [English Translation]\nProvide your response in this format to facilitate accurate cataloging.`;
+        // Get the appropriate prompt based on mode
+        const prompt = PROMPTS[mode];
 
         let result;
-        if (image) {
+        if (mode === 'translator' && image) {
             // Save the uploaded image temporarily
             const tempImagePath = `/tmp/temp-${image.originalname}`;
             fs.writeFileSync(tempImagePath, fs.readFileSync(image.filepath));
