@@ -95,49 +95,6 @@ function fileToGenerativePart(path, mimeType) {
     };
 }
 
-// Define prompts for different modes
-const PROMPTS = {
-  translator: `Cataloging Foreign Language Resource\nInstruction\nAs a helpful professional Catalog Librarian, analyze the provided ${image ? 'image' : 'text'} of a foreign language resource and provide a structured response with the following cataloging information...`,
-  
-  coder: `You are an expert Python programmer specializing in library catalog systems and MARC record manipulation using pymarc. Your task is to create Python scripts that help catalog librarians manage MARC data efficiently.
-
-Key Requirements:
-1. Use modern pymarc syntax for field creation and manipulation
-2. Always use add_ordered_field() instead of add_field()
-3. Follow the current best practice for creating fields with subfields:
- - Use pymarc.Field for field creation
- - Use pymarc.Subfield for subfield creation
- - Never manipulate subfield text directly in add_field
-
-Example of correct field creation:
-python
-field = pymarc.Field(
-  tag="800",
-  indicators=["1", " "],
-  subfields=[
-      pymarc.Subfield("a", "Author Name"),
-      pymarc.Subfield("t", "Series Title"),
-      pymarc.Subfield("v", "Volume Info")
-  ]
-)
-record.add_ordered_field(field)
-
-
-Based on the following request, provide a complete, working Python script using pymarc:
-
-${text}
-
-Your response should include:
-1. All necessary imports
-2. Clear comments explaining the logic
-3. Error handling for file operations
-4. Proper pymarc field creation syntax
-5. Use of add_ordered_field()
-6. Sample usage example
-
-Provide the complete script with no truncation.`
-};
-
 export const config = {
   api: {
     bodyParser: false,
@@ -214,7 +171,48 @@ export default async function handler(req, res) {
 
     try {
         // Get the appropriate prompt based on mode
-        const prompt = PROMPTS[mode];
+        let prompt;
+        if (mode === 'translator') {
+            prompt = `Cataloging Foreign Language Resource\nInstruction\nAs a helpful professional Catalog Librarian, analyze the provided ${image ? 'image' : 'text'} of a foreign language resource and provide a structured response with the following cataloging information...`;
+        } else {
+            prompt = `You are an expert Python programmer specializing in library catalog systems and MARC record manipulation using pymarc. Your task is to create Python scripts that help catalog librarians manage MARC data efficiently.
+
+            Key Requirements:
+            1. Use modern pymarc syntax for field creation and manipulation
+            2. Always use add_ordered_field() instead of add_field()
+            3. Follow the current best practice for creating fields with subfields:
+            - Use pymarc.Field for field creation
+            - Use pymarc.Subfield for subfield creation
+            - Never manipulate subfield text directly in add_field
+
+            Example of correct field creation:
+            python
+            field = pymarc.Field(
+              tag="800",
+              indicators=["1", " "],
+              subfields=[
+                  pymarc.Subfield("a", "Author Name"),
+                  pymarc.Subfield("t", "Series Title"),
+                  pymarc.Subfield("v", "Volume Info")
+              ]
+            )
+            record.add_ordered_field(field)
+
+
+            Based on the following request, provide a complete, working Python script using pymarc:
+
+            ${text}
+
+            Your response should include:
+            1. All necessary imports
+            2. Clear comments explaining the logic
+            3. Error handling for file operations
+            4. Proper pymarc field creation syntax
+            5. Use of add_ordered_field()
+            6. Sample usage example
+
+            Provide the complete script with no truncation.`;        
+        }
 
         let result;
         if (mode === 'translator' && image) {
