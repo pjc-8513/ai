@@ -179,12 +179,7 @@ export default async function handler(req, res) {
       'Cache-Control': 'no-cache',
       'Connection': 'keep-open'
     });
-  }catch (firstTryError) {
-    console.error('First try error:', firstTryError);
-    // Handle inner error
-}
 
-    try {
         // Get the appropriate prompt based on mode
         let prompt;
         if (mode === 'translator') {
