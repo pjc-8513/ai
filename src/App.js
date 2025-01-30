@@ -40,15 +40,17 @@ function App() {
                 isDone = done;
                 if (value) {
                     const chunkString = decoder.decode(value);
-                    const lines = chunkString.split('\n'); // Split into lines
+                    console.log('Received chunk:', chunkString); // Debugging statement
+                    const lines = chunkString.split('\n');
                     for (const line of lines) {
                         if (line.startsWith('data:')) {
                             try {
-                                const data = JSON.parse(line.substring(5)); // Parse JSON
+                                const data = JSON.parse(line.substring(5));
+                                console.log('Parsed data:', data); // Debugging statement
                                 if (data.chunk) {
-                                    setOutputText((prevOutput) => prevOutput + data.chunk); // Append new chunk
+                                    setOutputText((prevOutput) => prevOutput + data.chunk);
                                 } else if (data.error) {
-                                    setOutputText(data.error); // Display error
+                                    setOutputText(data.error);
                                     return;
                                 }
                             } catch (error) {

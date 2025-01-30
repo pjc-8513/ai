@@ -245,6 +245,7 @@ export default async function handler(req, res) {
                         const textContent = parsedData.candidates[0]?.content?.parts?.[0]?.text;
                         if (textContent) {
                             // Send the text content as a chunk
+                            console.log('Sending chunk:', textContent); // Debugging statement
                             res.write(`data: ${JSON.stringify({ chunk: textContent })}\n\n`);
                         }
                     }
