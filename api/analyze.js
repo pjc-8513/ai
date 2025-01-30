@@ -224,7 +224,7 @@ export default async function handler(req, res) {
       image: image ? {
         filepath: image.filepath,
         mimetype: image.mimetype,
-        originalname: image.originalname,
+        originalname: image.originalname || 'uploaded-image.png' // Add fallback
       } : null,
       mode, // Add mode to the task
     };
