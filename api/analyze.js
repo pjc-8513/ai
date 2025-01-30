@@ -222,12 +222,12 @@ export default async function handler(req, res) {
       prompt,
       text,
       image: image ? {
-        filepath: image.filepath,
-        mimetype: image.mimetype,
-        originalname: image.originalname || 'uploaded-image.png' // Add fallback
+          data: fs.readFileSync(image.filepath, { encoding: 'base64' }), // Read as buffer and encode
+          mimetype: image.mimetype,
+          originalname: image.originalname || 'uploaded-image.png'
       } : null,
-      mode, // Add mode to the task
-    };
+      mode,
+  };
 
     // Connect to RabbitMQ
     const channel = await connectRabbitMQ();
