@@ -173,13 +173,6 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "No image or text was provided" });
     }
 
-    // Set up streaming response
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-open'
-    });
-
         // Get the appropriate prompt based on mode
         let prompt;
         if (mode === 'translator') {
@@ -225,7 +218,6 @@ export default async function handler(req, res) {
         }
 
         
-        let result;
         if (mode === 'translator' && image) {
             // Save the uploaded image temporarily
             const tempImagePath = `/tmp/temp-${image.originalname}`;
