@@ -1,6 +1,6 @@
 {
   "functions": {
-    "pages/api/*.js": {
+    "/api/*.js": {
       "memory": 1024,
       "runtime": "nodejs16.x",
       "maxDuration": 30
