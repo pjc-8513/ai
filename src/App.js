@@ -6,48 +6,59 @@ function App() {
     const [loading, setLoading] = useState(false);
     const [image, setImage] = useState(null);
     const [mode, setMode] = useState('translator'); // New state for mode
-    
+
     const fileInputRef = useRef(null);
 
     const handleAnalyze = async () => {
         setLoading(true);
-        setOutputText('');
+        setOutputText(''); // Clear previous output
         try {
             const formData = new FormData();
             formData.append('text', inputText);
-            formData.append('mode', mode); // Add mode to formData
+            formData.append('mode', mode);
             if (mode === 'translator' && image) {
                 formData.append('image', image);
             }
-      
+
             const response = await fetch('/api/analyze', {
                 method: 'POST',
-                body: formData
+                body: formData,
             });
-      
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                setOutputText(errorData.error || 'An error occurred');
+                return;
+            }
+
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            let fullResponse = '';
-      
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-          
-                const chunk = decoder.decode(value);
-                const events = chunk.split('\n\n')
-                    .filter(event => event.startsWith('data: '));
-          
-                events.forEach(event => {
-                    try {
-                        const parsedChunk = JSON.parse(event.slice(6));
-                        if (parsedChunk.chunk) {
-                            fullResponse += parsedChunk.chunk;
-                            setOutputText(fullResponse);
+            let isDone = false;
+
+            while (!isDone) {
+                const { value, done } = await reader.read();
+                isDone = done;
+                if (value) {
+                    const chunkString = decoder.decode(value);
+                    const lines = chunkString.split('\n'); // Split into lines
+                    for (const line of lines) {
+                        if (line.startsWith('data:')) {
+                            try {
+                                const data = JSON.parse(line.substring(5)); // Parse JSON
+                                if (data.chunk) {
+                                    setOutputText((prevOutput) => prevOutput + data.chunk); // Append new chunk
+                                } else if (data.error) {
+                                    setOutputText(data.error); // Display error
+                                    return;
+                                }
+                            } catch (error) {
+                                console.error('Error parsing JSON:', error, line);
+                                setOutputText('Error parsing response');
+                                return;
+                            }
                         }
-                    } catch (parseError) {
-                        console.error('Parsing error:', parseError);
                     }
-                });
+                }
             }
         } catch (error) {
             console.error("Streaming error", error);
