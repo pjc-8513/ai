@@ -36,12 +36,6 @@ function rateLimit(ip) {
     return true;
 }
 
-async function connectRabbitMQ() {
-  const connection = await amqp.connect(cloudamqpUrl);
-  const channel = await connection.createChannel();
-  await channel.assertQueue(queueName, { durable: true });
-  return channel;
-}
 
 const imageModel = genAI.getGenerativeModel({
     model: "gemini-1.5-flash",
@@ -239,6 +233,7 @@ export default async function handler(req, res) {
 
         const parser = createParser((event) => {
             if (event.type === 'event') {
+              console.log('Event!')
                 try {
                     const parsedData = JSON.parse(event.data);
                     if (parsedData.candidates) {
@@ -261,8 +256,13 @@ export default async function handler(req, res) {
 
         // Stream the response
         for await (const chunk of result.stream) {
-            const chunkText = chunk.text();
+          const chunkText = chunk.text();
+          console.log('Received chunk from model:', chunkText); // Debugging statement
+          if (chunkText) {
             parser.feed(chunkText);
+          } else {
+              console.warn('Received empty chunk from model'); // Debugging statement
+          }
         }
 
         res.end();

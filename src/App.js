@@ -34,7 +34,7 @@ function App() {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let isDone = false;
-
+            console.log('about to get stream!');
             while (!isDone) {
                 const { value, done } = await reader.read();
                 isDone = done;
@@ -48,7 +48,7 @@ function App() {
                                 const data = JSON.parse(line.substring(5));
                                 console.log('Parsed data:', data); // Debugging statement
                                 if (data.chunk) {
-                                    setOutputText((prevOutput) => prevOutput + data.chunk);
+                                    setOutputText((prevOutput) => prevOutput + data.chunk); // Append new chunk
                                 } else if (data.error) {
                                     setOutputText(data.error);
                                     return;
