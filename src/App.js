@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 function App() {
     const [inputText, setInputText] = useState('');
@@ -34,23 +34,23 @@ function App() {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let isDone = false;
-            console.log('about to get stream!');
+
             while (!isDone) {
                 const { value, done } = await reader.read();
                 isDone = done;
                 if (value) {
                     const chunkString = decoder.decode(value);
-                    console.log('Received chunk:', chunkString); // Debugging statement
-                    const lines = chunkString.split('\n');
+                    console.log('Received chunk from server:', chunkString); // Debugging statement
+                    const lines = chunkString.split('\n'); // Split into lines
                     for (const line of lines) {
                         if (line.startsWith('data:')) {
                             try {
-                                const data = JSON.parse(line.substring(5));
+                                const data = JSON.parse(line.substring(5)); // Parse JSON
                                 console.log('Parsed data:', data); // Debugging statement
                                 if (data.chunk) {
                                     setOutputText((prevOutput) => prevOutput + data.chunk); // Append new chunk
                                 } else if (data.error) {
-                                    setOutputText(data.error);
+                                    setOutputText(data.error); // Display error
                                     return;
                                 }
                             } catch (error) {
@@ -94,6 +94,10 @@ function App() {
         }
         setImage(null);
     };
+
+    useEffect(() => {
+        console.log('Output text updated:', outputText); // Debugging statement
+    }, [outputText]);
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4">
