@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import InputArea from './InputArea';
-import OutputArea from './OutputArea';
+import OutputArea from '../src/OutputArea';
 import LoadingSpinner from './LoadingSpinner';
 import './styles.css';
 
