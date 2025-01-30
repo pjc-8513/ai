@@ -1,3 +1,4 @@
+import amqp from 'amqplib';
 import { createParser } from 'eventsource-parser';
 import formidable from 'formidable';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
@@ -5,6 +6,9 @@ import fs from 'fs';
 
 const mySecret = process.env.GOOGLE_API_KEY;
 const genAI = new GoogleGenerativeAI(mySecret);
+
+const cloudamqpUrl = process.env.CLOUDAMQP_URL;
+const queueName = process.env.QUEUE_NAME;
 
 // Rate limiting using an in-memory store (simple approach for Vercel)
 const requestCounts = new Map();
@@ -30,6 +34,13 @@ function rateLimit(ip) {
     existingEntry.count += 1;
     requestCounts.set(ip, existingEntry);
     return true;
+}
+
+async function connectRabbitMQ() {
+  const connection = await amqp.connect(cloudamqpUrl);
+  const channel = await connection.createChannel();
+  await channel.assertQueue(queueName, { durable: true });
+  return channel;
 }
 
 const imageModel = genAI.getGenerativeModel({
@@ -168,6 +179,10 @@ export default async function handler(req, res) {
       'Cache-Control': 'no-cache',
       'Connection': 'keep-open'
     });
+  }catch (firstTryError) {
+    console.error('First try error:', firstTryError);
+    // Handle inner error
+}
 
     try {
         // Get the appropriate prompt based on mode
@@ -214,6 +229,7 @@ export default async function handler(req, res) {
             Provide the complete script with no truncation.`;        
         }
 
+        
         let result;
         if (mode === 'translator' && image) {
             // Save the uploaded image temporarily
@@ -235,37 +251,27 @@ export default async function handler(req, res) {
             result = await textModel.generateContentStream([prompt, text]);
         }
 
-        // Stream the response back to the client
-        // In your API route
-        // In your API route
-        for await (const chunk of result.stream) {
-          try {
-            // Ensure chunk is a string before parsing
-            const chunkString = typeof chunk === 'object' ? JSON.stringify(chunk) : chunk.toString();
-            
-            // Parse the chunk
-            const parsedChunk = JSON.parse(chunkString);
-            
-            // Extract text content safely
-            const textContent = parsedChunk?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            
-            if (textContent) {
-              res.write(`data: ${JSON.stringify({ chunk: textContent })}\n\n`);
-            }
-          } catch (error) {
-            console.error('Streaming error:', error, chunk);
-            // Write error as a fallback
-            res.write(`data: ${JSON.stringify({ chunk: 'Error processing stream' })}\n\n`);
-          }
-        }
+    // Prepare the task
+    const task = {
+      prompt,
+      text,
+      image: image ? {
+        filepath: image.filepath,
+        mimetype: image.mimetype,
+        originalname: image.originalname,
+      } : null,
+      mode, // Add mode to the task
+    };
 
-        res.end();
-    } catch (error) {
-      console.error("Error calling Gemini API: ", error);
-     // res.write(`data: ${JSON.stringify({ error: "An error occurred while analyzing the input" })}\n\n`);
-     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-     res.end();
-    }
+    // Connect to RabbitMQ
+    const channel = await connectRabbitMQ();
+
+    // Send the task to the queue
+    await channel.sendToQueue(queueName, Buffer.from(JSON.stringify(task)));
+
+    // Respond to the client
+    res.writeHead(202, { 'Content-Type': 'text/plain' });
+    res.end('Task sent to queue');
   } catch (error) {
     console.error('Error processing request:', error);
     res.status(500).json({ error: error.message });
