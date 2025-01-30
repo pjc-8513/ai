@@ -142,7 +142,7 @@ export default async function handler(req, res) {
 
     // Validate text input length
     const text = fields.text ? fields.text.trim() : '';
-    const mode = fields.mode || 'translator';
+    const mode = fields.mode || 'translator'; // Ensure mode is defined
 
     if (text.length > MAX_TEXT_LENGTH) {
       return res.status(400).json({ 
@@ -170,7 +170,7 @@ export default async function handler(req, res) {
     }
 
     if (!image && !text) {
-        return res.status(400).json({ error: "No image or text was provided" });
+      return res.status(400).json({ error: "No image or text was provided" });
     }
 
         // Get the appropriate prompt based on mode
@@ -215,27 +215,6 @@ export default async function handler(req, res) {
             6. Sample usage example
 
             Provide the complete script with no truncation.`;        
-        }
-
-        
-        if (mode === 'translator' && image) {
-            // Save the uploaded image temporarily
-            const tempImagePath = `/tmp/temp-${image.originalname}`;
-            fs.writeFileSync(tempImagePath, fs.readFileSync(image.filepath));
-
-            // Prepare the image parts
-            const imageParts = [
-                fileToGenerativePart(tempImagePath, image.mimetype),
-            ];
-
-            // Call the Gemini API with image streaming
-            result = await imageModel.generateContentStream([prompt, ...imageParts]);
-
-            // Delete the temporary image
-            fs.unlinkSync(tempImagePath);
-        } else {
-            // Call the Gemini API with text streaming
-            result = await textModel.generateContentStream([prompt, text]);
         }
 
     // Prepare the task
