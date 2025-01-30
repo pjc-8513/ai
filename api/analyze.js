@@ -172,6 +172,11 @@ export default async function handler(req, res) {
     if (!image && !text) {
       return res.status(400).json({ error: "No image or text was provided" });
     }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform', // Added no-transform
+      'Connection': 'keep-alive',
+    });
 
         // Get the appropriate prompt based on mode
         let prompt;
@@ -217,29 +222,52 @@ export default async function handler(req, res) {
             Provide the complete script with no truncation.`;        
         }
 
-    // Prepare the task
-    const task = {
-      prompt,
-      text,
-      image: image ? {
-          data: fs.readFileSync(image.filepath, { encoding: 'base64' }), // Read as buffer and encode
-          mimetype: image.mimetype,
-          originalname: image.originalname || 'uploaded-image.png'
-      } : null,
-      mode,
-  };
+        let result;
+        let imageParts;
 
-    // Connect to RabbitMQ
-    const channel = await connectRabbitMQ();
+        if (mode === 'translator' && image) {
+            imageParts = [{
+                inlineData: {
+                    data: fs.readFileSync(image.filepath).toString("base64"),
+                    mimeType: image.mimetype
+                }
+            }];
+            result = await imageModel.generateContentStream([prompt, ...imageParts]);
+        } else {
+            result = await textModel.generateContentStream([prompt, text]);
+        }
 
-    // Send the task to the queue
-    await channel.sendToQueue(queueName, Buffer.from(JSON.stringify(task)));
+        const parser = createParser((event) => {
+            if (event.type === 'event') {
+                try {
+                    const parsedData = JSON.parse(event.data);
+                    if (parsedData.candidates) {
+                        const textContent = parsedData.candidates[0]?.content?.parts?.[0]?.text;
+                        if (textContent) {
+                            // Send the text content as a chunk
+                            res.write(`data: ${JSON.stringify({ chunk: textContent })}\n\n`);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error parsing event data:', error);
+                    res.write(`data: ${JSON.stringify({ error: 'Error parsing stream data' })}\n\n`);
+                }
+            } else if (event.type === 'error') {
+                console.error('Error in the event stream:', event);
+                res.write(`data: ${JSON.stringify({ error: 'Error in the event stream' })}\n\n`);
+            }
+        });
 
-    // Respond to the client
-    res.writeHead(202, { 'Content-Type': 'text/plain' });
-    res.end('Task sent to queue');
-  } catch (error) {
-    console.error('Error processing request:', error);
-    res.status(500).json({ error: error.message });
-  }
+        // Stream the response
+        for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            parser.feed(chunkText);
+        }
+
+        res.end();
+    } catch (error) {
+        console.error('Error processing request:', error);
+        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.end();
+    }
 }
