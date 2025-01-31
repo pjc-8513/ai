@@ -1,14 +1,9 @@
-import amqp from 'amqplib';
-import { createParser } from 'eventsource-parser';
 import formidable from 'formidable';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import fs from 'fs';
 
 const mySecret = process.env.GOOGLE_API_KEY;
 const genAI = new GoogleGenerativeAI(mySecret);
-
-const cloudamqpUrl = process.env.CLOUDAMQP_URL;
-const queueName = process.env.QUEUE_NAME;
 
 // Rate limiting using an in-memory store (simple approach for Vercel)
 const requestCounts = new Map();
@@ -90,15 +85,6 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 // Maximum text input length
 const MAX_TEXT_LENGTH = 1000;
 
-// Function to convert file to base64
-function fileToGenerativePart(path, mimeType) {
-    return {
-        inlineData: {
-            data: Buffer.from(fs.readFileSync(path)).toString("base64"),
-            mimeType
-        },
-    };
-}
 
 export const config = {
   api: {
@@ -106,71 +92,71 @@ export const config = {
   },
 };
 
+
 export default async function handler(req, res) {
-  // Get client IP (works with Vercel)
-  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-  // Rate limiting
-  if (!rateLimit(ip)) {
-    return res.status(429).json({ 
-      error: 'Too many requests. Please try again later.' 
-    });
-  }
-
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+      return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const form = new formidable.IncomingForm({
-    // Limit file size
-    maxFileSize: MAX_FILE_SIZE
-  });
-  
   try {
-    const [fields, files] = await new Promise((resolve, reject) => {
-      form.parse(req, (err, fields, files) => {
-        if (err) reject(err);
-        resolve([fields, files]);
+      const form = formidable({
+          maxFileSize: MAX_FILE_SIZE,
+          // Use in-memory file handling instead of disk
+          uploadDir: '/tmp',
+          keepExtensions: true,
       });
-    });
 
-    // Validate text input length
-    const text = fields.text ? fields.text.trim() : '';
-    const mode = fields.mode || 'translator'; // Ensure mode is defined
-
-    if (text.length > MAX_TEXT_LENGTH) {
-      return res.status(400).json({ 
-        error: `Text input too long. Maximum ${MAX_TEXT_LENGTH} characters allowed.` 
+      const [fields, files] = await new Promise((resolve, reject) => {
+          form.parse(req, (err, fields, files) => {
+              if (err) reject(err);
+              resolve([fields, files]);
+          });
       });
-    }
 
-    const image = files.image;
+      const text = fields.text ? fields.text.trim() : '';
+      const mode = fields.mode || 'translator';
 
-    // Validate image if uploaded
-    if (mode === 'translator' && image) {
-      // Check file type
-      if (!ALLOWED_IMAGE_TYPES.includes(image.mimetype)) {
-        return res.status(400).json({ 
-          error: 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.' 
-        });
+      if (text.length > MAX_TEXT_LENGTH) {
+          return res.status(400).json({
+              error: `Text input too long. Maximum ${MAX_TEXT_LENGTH} characters allowed.`
+          });
       }
 
-      // Check file size
-      if (image.size > MAX_FILE_SIZE) {
-        return res.status(400).json({ 
-          error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB.` 
-        });
-      }
-    }
+      const image = files.image;
+      if (mode === 'translator' && image) {
+          if (!ALLOWED_IMAGE_TYPES.includes(image.mimetype)) {
+              return res.status(400).json({
+                  error: 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.'
+              });
+          }
 
-    if (!image && !text) {
-      return res.status(400).json({ error: "No image or text was provided" });
-    }
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform', // Added no-transform
-      'Connection': 'keep-alive',
-    });
+          if (image.size > MAX_FILE_SIZE) {
+              return res.status(400).json({
+                  error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB.`
+              });
+          }
+      }
+
+      if (!image && !text) {
+          return res.status(400).json({ error: "No image or text was provided" });
+      }
+
+      // Instead of streaming, get complete response
+      let result;
+      if (mode === 'translator' && image) {
+          const imageData = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result.split(',')[1]);
+              reader.onerror = reject;
+              reader.readAsDataURL(image);
+          });
+
+          const imagePart = {
+              inlineData: {
+                  data: imageData,
+                  mimeType: image.mimetype
+              }
+          };
 
         // Get the appropriate prompt based on mode
         let prompt;
@@ -214,61 +200,20 @@ export default async function handler(req, res) {
             6. Sample usage example
 
             Provide the complete script with no truncation.`;        
-        }
+        }          
 
-        let result;
-        let imageParts;
+          result = await imageModel.generateContent([prompt, imagePart]);
+      } else {
+          result = await textModel.generateContent([prompt, text]);
+      }
 
-        if (mode === 'translator' && image) {
-            imageParts = [{
-                inlineData: {
-                    data: fs.readFileSync(image.filepath).toString("base64"),
-                    mimeType: image.mimetype
-                }
-            }];
-            result = await imageModel.generateContentStream([prompt, ...imageParts]);
-        } else {
-            result = await textModel.generateContentStream([prompt, text]);
-        }
+      const response = result.response;
+      return res.status(200).json({ 
+          result: response.text()
+      });
 
-        const parser = createParser((event) => {
-            if (event.type === 'event') {
-              console.log('Event!')
-                try {
-                    const parsedData = JSON.parse(event.data);
-                    if (parsedData.candidates) {
-                        const textContent = parsedData.candidates[0]?.content?.parts?.[0]?.text;
-                        if (textContent) {
-                            // Send the text content as a chunk
-                            console.log('Sending chunk:', textContent); // Debugging statement
-                            res.write(`data: ${JSON.stringify({ chunk: textContent })}\n\n`);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error parsing event data:', error);
-                    res.write(`data: ${JSON.stringify({ error: 'Error parsing stream data' })}\n\n`);
-                }
-            } else if (event.type === 'error') {
-                console.error('Error in the event stream:', event);
-                res.write(`data: ${JSON.stringify({ error: 'Error in the event stream' })}\n\n`);
-            }
-        });
-
-        // Stream the response
-        for await (const chunk of result.stream) {
-          const chunkText = chunk.text();
-          console.log('Received chunk from model:', chunkText); // Debugging statement
-          if (chunkText) {
-            parser.feed(chunkText);
-          } else {
-              console.warn('Received empty chunk from model'); // Debugging statement
-          }
-        }
-
-        res.end();
-    } catch (error) {
-        console.error('Error processing request:', error);
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-        res.end();
-    }
+  } catch (error) {
+      console.error('Error processing request:', error);
+      return res.status(500).json({ error: error.message });
+  }
 }
