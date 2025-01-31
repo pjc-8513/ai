@@ -23,13 +23,25 @@ const serve = serveStatic(uploadDir, { index: false });
 export default async function handler(req, res) {
     if (req.method === 'GET' && req.url.startsWith('/tmp/uploads/')) {
         try {
-            return serve(req, res, () => {
-              res.statusCode = 404
-              res.end('file not found');
-            });
-         } catch(err){
-           return res.status(500).json({ error: 'Internal server error - getting file' });
-         }
+            const filename = path.basename(req.url);
+            const filePath = path.join(uploadDir, filename);
+            
+            // Check if file exists
+            if (!fs.existsSync(filePath)) {
+                return res.status(404).json({ error: 'File not found' });
+            }
+
+            // Set appropriate headers
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            
+            // Stream the file contents
+            const fileStream = fs.createReadStream(filePath);
+            return fileStream.pipe(res);
+        } catch(err) {
+            console.error('Error serving file:', err);
+            return res.status(500).json({ error: 'Internal server error - getting file' });
+        }
     }
 
     if (req.method !== 'POST') {
