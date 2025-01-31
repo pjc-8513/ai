@@ -192,11 +192,17 @@ function App() {
                                 <div>
                                     <h3 className="text-lg font-medium mt-4">Download split files:</h3>
                                     <ul>
-                                        {files.map((file, index) => (
-                                            <li key={index}>
-                                                <a href={file} download>{file.split('/').pop()}</a>
-                                            </li>
-                                        ))}
+                                    {files.map((file, index) => (
+                                        <li key={index}>
+                                            <a 
+                                                href={`/api/download?file=${encodeURIComponent(file)}`} 
+                                                download
+                                                className="text-blue-600 hover:underline"
+                                            >
+                                                {file.split('/').pop()}
+                                            </a>
+                                        </li>
+                                    ))}
                                     </ul>
                                 </div>
                             )}
