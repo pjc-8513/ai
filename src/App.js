@@ -1,17 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 function App() {
     const [inputText, setInputText] = useState('');
     const [outputText, setOutputText] = useState('');
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
     const [image, setImage] = useState(null);
-    const [mode, setMode] = useState('translator'); // New state for mode
-
+    const [mode, setMode] = useState('translator');
     const fileInputRef = useRef(null);
 
     const handleAnalyze = async () => {
         setLoading(true);
-        setOutputText(''); // Clear previous output
+        setOutputText('');
+        setError('');
+        
         try {
             const formData = new FormData();
             formData.append('text', inputText);
@@ -25,46 +28,17 @@ function App() {
                 body: formData,
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                const errorData = await response.json();
-                setOutputText(errorData.error || 'An error occurred');
-                return;
+                throw new Error(data.error || 'An error occurred');
             }
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let isDone = false;
-
-            while (!isDone) {
-                const { value, done } = await reader.read();
-                isDone = done;
-                if (value) {
-                    const chunkString = decoder.decode(value);
-                    console.log('Received chunk from server:', chunkString); // Debugging statement
-                    const lines = chunkString.split('\n'); // Split into lines
-                    for (const line of lines) {
-                        if (line.startsWith('data:')) {
-                            try {
-                                const data = JSON.parse(line.substring(5)); // Parse JSON
-                                console.log('Parsed data:', data); // Debugging statement
-                                if (data.chunk) {
-                                    setOutputText((prevOutput) => prevOutput + data.chunk); // Append new chunk
-                                } else if (data.error) {
-                                    setOutputText(data.error); // Display error
-                                    return;
-                                }
-                            } catch (error) {
-                                console.error('Error parsing JSON:', error, line);
-                                setOutputText('Error parsing response');
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
+            setOutputText(data.result || '');
+            
         } catch (error) {
-            console.error("Streaming error", error);
-            setOutputText(error.message || 'Error analyzing input');
+            console.error("Analysis error:", error);
+            setError(error.message || 'Error analyzing input');
         } finally {
             setLoading(false);
         }
@@ -75,16 +49,17 @@ function App() {
         if (file) {
             const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
             if (!allowedTypes.includes(file.type)) {
-                alert('Please upload only JPG, PNG, GIF, or WebP images');
+                setError('Please upload only JPG, PNG, GIF, or WebP images');
                 return;
             }
 
             if (file.size > 5 * 1024 * 1024) {
-                alert('File is too large. Maximum size is 5MB');
+                setError('File is too large. Maximum size is 5MB');
                 return;
             }
 
             setImage(file);
+            setError('');
         }
     };
 
@@ -95,10 +70,6 @@ function App() {
         setImage(null);
     };
 
-    useEffect(() => {
-        console.log('Output text updated:', outputText); // Debugging statement
-    }, [outputText]);
-
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4">
             <div className="max-w-2xl mx-auto">
@@ -107,10 +78,13 @@ function App() {
                         AI Librarian
                     </h1>
                     
-                    {/* Mode selection buttons */}
                     <div className="flex justify-center gap-4 mb-6">
                         <button 
-                            onClick={() => setMode('translator')}
+                            onClick={() => {
+                                setMode('translator');
+                                setError('');
+                                setOutputText('');
+                            }}
                             className={`px-4 py-2 rounded-lg font-medium ${
                                 mode === 'translator' 
                                     ? 'bg-blue-600 text-white' 
@@ -120,7 +94,12 @@ function App() {
                             Translator
                         </button>
                         <button 
-                            onClick={() => setMode('coder')}
+                            onClick={() => {
+                                setMode('coder');
+                                setError('');
+                                setOutputText('');
+                                clearImage();
+                            }}
                             className={`px-4 py-2 rounded-lg font-medium ${
                                 mode === 'coder' 
                                     ? 'bg-blue-600 text-white' 
@@ -132,6 +111,12 @@ function App() {
                     </div>
 
                     <div className="space-y-6">
+                        {error && (
+                            <Alert variant="destructive">
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
+
                         <textarea
                             value={inputText}
                             onChange={(e) => setInputText(e.target.value)}
@@ -176,18 +161,20 @@ function App() {
 
                         <button
                             onClick={handleAnalyze}
-                            disabled={loading}
+                            disabled={loading || (!inputText && !image)}
                             className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                         >
                             {loading ? 'Processing...' : 'Analyze'}
                         </button>
 
-                        <div className="mt-6">
-                            <h3 className="text-lg font-medium mb-2">Response</h3>
-                            <div className="p-4 bg-gray-50 rounded-lg min-h-[100px]">
-                                {outputText || 'Response will appear here'}
+                        {outputText && (
+                            <div className="mt-6">
+                                <h3 className="text-lg font-medium mb-2">Response</h3>
+                                <div className="p-4 bg-gray-50 rounded-lg min-h-[100px] whitespace-pre-wrap">
+                                    {outputText}
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>
