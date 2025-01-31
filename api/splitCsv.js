@@ -11,7 +11,7 @@ export const config = {
 };
 
 const writeFile = promisify(fs.writeFile);
-const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+const uploadDir = path.join('/tmp', 'uploads'); // Using /tmp for uploads
 
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -19,7 +19,7 @@ if (!fs.existsSync(uploadDir)) {
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
+       return res.status(405).json({ error: 'Method not allowed' });
     }
 
     try {
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
 
         const file = files.file;
         if (!file || !file.originalFilename.endsWith('.csv')) {
-            return res.status(400).json({ error: 'Invalid file format. Please upload a CSV file.' });
+             return res.status(400).json({ error: 'Invalid file format. Please upload a CSV file.' });
         }
 
         const fileContent = fs.readFileSync(file.filepath, 'utf-8');
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
             const filename = `part_${i + 1}_${uuidv4()}.csv`;
             const filePath = path.join(uploadDir, filename);
             await writeFile(filePath, chunks[i]);
-            fileLinks.push(`/uploads/${filename}`);
+            fileLinks.push(`/tmp/uploads/${filename}`);  // Modified to show /tmp
         }
 
         return res.status(200).json({ message: 'CSV split successfully!', files: fileLinks });
@@ -63,7 +63,7 @@ function splitCsvContent(content, chunkSize = 200) {
     const chunks = [];
 
     for (let i = 0; i < data.length; i += chunkSize) {
-        chunks.push([header, ...data.slice(i, i + chunkSize)].join('\n'));
+       chunks.push([header, ...data.slice(i, i + chunkSize)].join('\n'));
     }
     return chunks;
 }
