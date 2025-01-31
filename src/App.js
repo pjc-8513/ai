@@ -98,6 +98,7 @@ function App() {
                                 setError('');
                                 setOutputText('');
                                 clearImage();
+                                alert('This is more experimental and often fails.');
                             }}
                             className={`px-4 py-2 rounded-lg font-medium ${
                                 mode === 'coder' 
