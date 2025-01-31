@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 function App() {
     const [inputText, setInputText] = useState('');
@@ -112,9 +111,15 @@ function App() {
 
                     <div className="space-y-6">
                         {error && (
-                            <Alert variant="destructive">
-                                <AlertDescription>{error}</AlertDescription>
-                            </Alert>
+                            <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                                <div className="flex">
+                                    <div className="ml-3">
+                                        <p className="text-sm text-red-700">
+                                            {error}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                         )}
 
                         <textarea
