@@ -35,9 +35,9 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Internal server error' });
     }
 
-    const file = files.file;
+    const filePath = file.filepath;
     const filename = file.name;
-    const filePath = file.path;
+    
 
     const fileContent = fs.readFileSync(filePath, 'utf8');
     const chunks = splitCsvContent(fileContent);
