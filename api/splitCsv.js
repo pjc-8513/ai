@@ -19,7 +19,7 @@ if (!fs.existsSync(uploadDir)) {
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
-       return res.status(405).json({ error: 'Method not allowed' });
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
     try {
@@ -32,8 +32,9 @@ export default async function handler(req, res) {
         });
 
         const file = files.file;
-        if (!file || !file.originalFilename.endsWith('.csv')) {
-             return res.status(400).json({ error: 'Invalid file format. Please upload a CSV file.' });
+        // Modified file extension check to allow .csv OR .txt files
+        if (!file || (!file.originalFilename.endsWith('.csv') && !file.originalFilename.endsWith('.txt'))) {
+            return res.status(400).json({ error: 'Invalid file format. Please upload a CSV or TXT file.' });
         }
 
         const fileContent = fs.readFileSync(file.filepath, 'utf-8');
@@ -41,13 +42,13 @@ export default async function handler(req, res) {
         const fileLinks = [];
 
         for (let i = 0; i < chunks.length; i++) {
-            const filename = `part_${i + 1}_${uuidv4()}.csv`;
+            const filename = `part_${i + 1}_${uuidv4()}.csv`; // Still using .csv as the output format
             const filePath = path.join(uploadDir, filename);
             await writeFile(filePath, chunks[i]);
-            fileLinks.push(`/tmp/uploads/${filename}`);  // Modified to show /tmp
+            fileLinks.push(`/tmp/uploads/${filename}`);
         }
 
-        return res.status(200).json({ message: 'CSV split successfully!', files: fileLinks });
+        return res.status(200).json({ message: 'File split successfully!', files: fileLinks });
     } catch (error) {
         console.error('Error processing file:', error);
         return res.status(500).json({ error: 'Internal server error' });
@@ -56,14 +57,14 @@ export default async function handler(req, res) {
 
 function splitCsvContent(content, chunkSize = 200) {
     const lines = content.split(/\r?\n/);
-    if (lines.length === 0) throw new Error('Empty CSV file');
+    if (lines.length === 0) throw new Error('Empty file'); // Changed error message to 'Empty file'
 
     const header = lines[0];
     const data = lines.slice(1);
     const chunks = [];
 
     for (let i = 0; i < data.length; i += chunkSize) {
-       chunks.push([header, ...data.slice(i, i + chunkSize)].join('\n'));
+        chunks.push([header, ...data.slice(i, i + chunkSize)].join('\n'));
     }
     return chunks;
 }
