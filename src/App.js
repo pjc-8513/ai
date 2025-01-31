@@ -48,40 +48,49 @@ function App() {
         setError(null);
         setFiles([]);
         const file = event.target.files[0];
-
+    
         if (!file) {
             setError("Please upload a TXT file!");
             return;
         }
-
+    
+        // Add debug logging
+        console.log("Uploading file:", file.name, file.size);
+    
         if (file.size > 25_000_000) {
             setError("File is too large! Please upload a file smaller than 25MB.");
             return;
         }
-
+    
         if (!file.name.endsWith(".txt")) {
             setError("Please upload a TXT file!");
             return;
         }
-
+    
         setLoading(true);
         const formData = new FormData();
         formData.append("file", file);
-
+    
         try {
+            // Add debug logging
+            console.log("Sending request to /api/splitCsv");
             const response = await fetch("/api/splitCsv", {
                 method: "POST",
                 body: formData,
             });
-
+    
+            // Add debug logging
+            console.log("Response status:", response.status);
             const data = await response.json();
-
+            console.log("Response data:", data);
+    
             if (!response.ok) {
                 throw new Error(data.error || "An error occurred");
             }
-
+    
             setFiles(data.files);
         } catch (err) {
+            console.error("Upload error:", err);
             setError(err.message);
         } finally {
             setLoading(false);
