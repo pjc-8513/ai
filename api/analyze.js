@@ -9,27 +9,87 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 1000;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-const imageModel = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    safetySettings: [
-        {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
+// Response schema for translator mode
+const translatorResponseSchema = {
+  type: "object",
+  properties: {
+    response: {
+      type: "object",
+      properties: {
+        original: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            subtitle: { type: "string" },
+            edition: { type: "string" },
+            publication_information: { type: "string" },
+            author: { type: "string" },
+            added_author: { type: "string" },
+            translator: { type: "string" },
+            illustrator: { type: "string" },
+            other: { type: "string" }
+          },
+          required: [
+            "title", "subtitle", "edition", "publication_information",
+            "author", "added_author", "translator", "illustrator"
+          ]
         },
-        {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
+        translated: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            subtitle: { type: "string" },
+            edition: { type: "string" },
+            publication_information: { type: "string" },
+            author: { type: "string" },
+            added_author: { type: "string" },
+            translator: { type: "string" },
+            illustrator: { type: "string" },
+            other: { type: "string" }
+          },
+          required: [
+            "title", "subtitle", "edition", "publication_information",
+            "author", "added_author", "translator", "illustrator"
+          ]
         },
-        {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-    ],
-});
+        transliterated: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            subtitle: { type: "string" },
+            edition: { type: "string" },
+            publication_information: { type: "string" },
+            author: { type: "string" },
+            added_author: { type: "string" },
+            translator: { type: "string" },
+            illustrator: { type: "string" },
+            other: { type: "string" }
+          },
+          required: [
+            "title", "subtitle", "edition", "publication_information",
+            "author", "added_author", "translator", "illustrator"
+          ]
+        }
+      },
+      required: ["original", "translated", "transliterated"]
+    }
+  },
+  required: ["response"]
+};
+
+const getTranslatorModel = () => {
+  return genAI.getGenerativeModel({
+    model: "gemini-2.0-flash-exp",
+    generationConfig: {
+      temperature: 1,
+      topP: 0.95,
+      topK: 40,
+      maxOutputTokens: 8192,
+      responseMimeType: "application/json",
+      responseSchema: translatorResponseSchema
+    }
+  });
+};
 
 const textModel = genAI.getGenerativeModel({
     model: "gemini-1.5-pro",
@@ -151,26 +211,33 @@ As a helpful professional Catalog Librarian, analyze the provided ${image ? 'ima
         }
 
         let result;
-        if (mode === 'translator' && image) {
-            // Read the image file as base64
-            const imageData = Buffer.from(await require('fs').promises.readFile(image.filepath)).toString('base64');
-            
-            const imagePart = {
-                inlineData: {
-                    data: imageData,
-                    mimeType: image.mimetype
-                }
-            };
+        if (mode === 'translator') {
+            const model = getTranslatorModel();
+            if (image) {
+                // Read the image file as base64
+                const imageData = Buffer.from(await require('fs').promises.readFile(image.filepath)).toString('base64');
+                
+                const imagePart = {
+                    inlineData: {
+                        data: imageData,
+                        mimeType: image.mimetype
+                    }
+                };
 
-            result = await imageModel.generateContent([prompt, imagePart]);
+                result = await model.generateContent([prompt, imagePart]);
+            } else {
+                result = await model.generateContent([prompt, text]);
+            }
+            // For translator mode, we directly return the JSON response
+            const response = result.response;
+            return res.status(200).json(response);
         } else {
             result = await textModel.generateContent([prompt, text]);
+            const response = result.response;
+            return res.status(200).json({ 
+                result: response.text()
+            });
         }
-
-        const response = result.response;
-        return res.status(200).json({ 
-            result: response.text()
-        });
 
     } catch (error) {
         console.error('Error processing request:', error);
