@@ -2,6 +2,11 @@ import { MongoClient } from 'mongodb';
 
 export default async function handler(req, res) {
     console.log("Download request received for chunk:", req.query.chunkId);
+    const MONGODB_URI = process.env.MONGODB_URI;
+    if (!MONGODB_URI) {
+        console.error('MONGODB_URI is not defined');
+        return res.status(500).json({ error: 'Database configuration error' });
+    }
     
     if (req.method !== 'GET') {
         return res.status(405).json({ error: 'Method not allowed' });
