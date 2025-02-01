@@ -5,7 +5,6 @@ import crypto from 'crypto';
 const MONGODB_URI = process.env.MONGODB_URI;
 const CHUNK_SIZE = 200; // lines per chunk
 
-// in /api/splitCsv.js
 export default async function handler(req, res) {
     try {
         const { content, filename } = req.body;
@@ -22,18 +21,21 @@ export default async function handler(req, res) {
         
         // Process each line to extract title and count holds
         data.forEach(line => {
-            // Parse CSV properly to handle quoted fields
-            const match = line.match(/("([^"]*)"|[^,]*),("([^"]*)"|[^,]*),("([^"]*)"|[^,]*)/);
-            if (match) {
-                const title = match[2] || match[1]; // Use captured group from quotes if exists
-                const holdsField = match[6] || match[5]; // Use captured group from quotes if exists
-                
-                // Count semicolons + 1 to get total holds
-                const totalHolds = (holdsField.match(/;/g) || []).length + 1;
-                
-                // Add to titles_holds content
-                titleHoldsContent.push(`"${title}",${totalHolds}\n`);
-            }
+            if (!line.trim()) return; // Skip empty lines
+            
+            // Split the line into fields, properly handling quoted values
+            const fields = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
+            if (!fields || fields.length < 3) return;
+            
+            // Clean up the fields (remove quotes and trim)
+            const title = fields[1].replace(/^"|"$/g, '').trim();
+            const holdsField = fields[2].replace(/^"|"$/g, '').trim();
+            
+            // Count holds by counting semicolons + 1
+            const totalHolds = (holdsField.match(/";"/g) || []).length + 1;
+            
+            // Add to titles_holds content
+            titleHoldsContent.push(`"${title}",${totalHolds}\n`);
         });
 
         // Store the titles_holds file
