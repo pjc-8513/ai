@@ -60,7 +60,7 @@ function App() {
         }
     
         if (!file.name.endsWith(".txt")) {
-            setError("Please upload a TXT file!");
+            setError("Please upload a txt file!");
             return;
         }
     
@@ -94,6 +94,41 @@ function App() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleClearAll = async () => {
+        try {
+            // Clear the files from MongoDB
+            const response = await fetch('/api/clearChunks', {
+                method: 'POST',
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to clear chunks');
+            }
+
+            // Clear the UI
+            setFiles([]);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        } catch (error) {
+            setError('Error clearing files: ' + error.message);
+        }
+    };
+
+    const getDownloadName = (chunkId, index) => {
+        if (chunkId === 'titles_holds') {
+            return 'title_holds.csv';
+        }
+        return `chunk_${index}.csv`;
+    };
+
+    const getLinkText = (chunkId, index) => {
+        if (chunkId === 'titles_holds') {
+            return 'Title Holds';
+        }
+        return `Download Part ${index}`;
     };
 
     const handleImageChange = (event) => {
@@ -194,50 +229,53 @@ function App() {
 
                     {mode === 'csv' && (
                         <div>
-                            <input type="file" accept=".txt" onChange={handleFileUpload} />
+                            <input type="file" accept=".txt,.csv" onChange={handleFileUpload} />
                             {loading && <p>Processing file...</p>}
                             {files.length > 0 && (
                                 <div>
                                     <h3 className="text-lg font-medium mt-4">Download split files:</h3>
                                     <ul>
                                     {files.map((chunkId, index) => (
-                                        <li key={chunkId}>
-                                            <a 
-                                                href={`/api/download/${chunkId}`} 
-                                                download={`chunk_${index + 1}.csv`}
-                                                className="text-blue-600 hover:underline"
-                                                onClick={async (e) => {
-                                                    e.preventDefault();
-                                                    try {
-                                                        const response = await fetch(`/api/download/${chunkId}`);
-                                                        if (!response.ok) {
-                                                            const error = await response.json();
-                                                            throw new Error(error.error || 'Download failed');
+                                            <li key={chunkId}>
+                                                <a 
+                                                    href={`/api/download/${chunkId}`} 
+                                                    download={getDownloadName(chunkId, index)}
+                                                    className="text-blue-600 hover:underline"
+                                                    onClick={async (e) => {
+                                                        e.preventDefault();
+                                                        try {
+                                                            const response = await fetch(`/api/download/${chunkId}`);
+                                                            if (!response.ok) {
+                                                                const error = await response.json();
+                                                                throw new Error(error.error || 'Download failed');
+                                                            }
+                                                            
+                                                            const blob = await response.blob();
+                                                            const url = window.URL.createObjectURL(blob);
+                                                            const a = document.createElement('a');
+                                                            a.href = url;
+                                                            a.download = getDownloadName(chunkId, index);
+                                                            document.body.appendChild(a);
+                                                            a.click();
+                                                            window.URL.revokeObjectURL(url);
+                                                            document.body.removeChild(a);
+                                                        } catch (error) {
+                                                            console.error('Download error:', error);
+                                                            setError(error.message);
                                                         }
-                                                        
-                                                        // Get the blob from the response
-                                                        const blob = await response.blob();
-                                                        
-                                                        // Create a download link
-                                                        const url = window.URL.createObjectURL(blob);
-                                                        const a = document.createElement('a');
-                                                        a.href = url;
-                                                        a.download = `chunk_${index + 1}.csv`;
-                                                        document.body.appendChild(a);
-                                                        a.click();
-                                                        window.URL.revokeObjectURL(url);
-                                                        document.body.removeChild(a);
-                                                    } catch (error) {
-                                                        console.error('Download error:', error);
-                                                        setError(error.message);
-                                                    }
-                                                }}
-                                            >
-                                                Download Part {index + 1}
-                                            </a>
-                                        </li>
-                                    ))}
+                                                    }}
+                                                >
+                                                    {getLinkText(chunkId, index + 1)}
+                                                </a>
+                                            </li>
+                                        ))}
                                     </ul>
+                                    <button
+                                        onClick={handleClearAll}
+                                        className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                                    >
+                                        Clear All
+                                    </button>
                                 </div>
                             )}
                         </div>
