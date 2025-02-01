@@ -16,27 +16,52 @@ export default async function handler(req, res) {
         const db = client.db('csvSplitter');
         const chunks = db.collection('chunks');
 
-        // Create the titles_holds summary
-        const titleHoldsContent = ['Title,Holds\n'];  // Start with header
+    // Create the titles_holds summary
+    const titleHoldsHeader = ['Title,Holds'];  // We'll modify this if we find RECD_DATE
+    let hasRecdDate = false;
+
+    // Check the header for RECD_DATE column
+    const headerColumns = header.split(',');
+    const recdDateIndex = headerColumns.findIndex(col => 
+        col.trim().replace(/"/g, '').toUpperCase() === 'RECD_DATE'
+    );
+    if (recdDateIndex !== -1) {
+        titleHoldsHeader[0] = 'Title,Holds,RECD_DATE';
+        hasRecdDate = true;
+    }
+
+    const titleHoldsContent = [titleHoldsHeader + '\n'];  // Start with appropriate header
+
+    // Process each line to extract title and count holds
+    data.forEach(line => {
+        if (!line.trim()) return; // Skip empty lines
         
-        // Process each line to extract title and count holds
-        data.forEach(line => {
-            if (!line.trim()) return; // Skip empty lines
-            
-            // Split the line into fields, properly handling quoted values
-            const fields = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
-            if (!fields || fields.length < 3) return;
-            
-            // Clean up the fields (remove quotes and trim)
-            const title = fields[1].replace(/^"|"$/g, '').trim();
-            const holdsField = fields[2].replace(/^"|"$/g, '').trim();
-            
-            // Count holds by counting semicolons + 1
-            const totalHolds = (holdsField.match(/";"/g) || []).length + 1;
-            
-            // Add to titles_holds content
-            titleHoldsContent.push(`"${title}",${totalHolds}\n`);
-        });
+        // Split the line into fields, properly handling quoted values
+        const fields = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
+        if (!fields || fields.length < 3) return;
+        
+        // Clean up the fields (remove quotes and trim)
+        const title = fields[1].replace(/^"|"$/g, '').trim();
+        const holdsField = fields[2].replace(/^"|"$/g, '').trim();
+        
+        // Count holds by counting semicolons + 1
+        const totalHolds = (holdsField.match(/";"/g) || []).length + 1;
+        
+        // Build the line for titles_holds file
+        let titleHoldsLine = `"${title}",${totalHolds}`;
+        
+        // Add RECD_DATE if it exists
+        if (hasRecdDate && fields[recdDateIndex]) {
+            const recdDate = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
+            titleHoldsLine += `,${recdDate}`;
+        } else if (hasRecdDate) {
+            // If we have the column but this record doesn't have a date
+            titleHoldsLine += ',';
+        }
+        
+        // Add to titles_holds content
+        titleHoldsContent.push(titleHoldsLine + '\n');
+    });
 
         // Store the titles_holds file
         await chunks.insertOne({
