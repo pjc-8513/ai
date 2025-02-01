@@ -50,7 +50,7 @@ function App() {
         const file = event.target.files[0];
     
         if (!file) {
-            setError("Please upload a TXT file!");
+            setError("Please upload a txt file!");
             return;
         }
     
