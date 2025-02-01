@@ -230,6 +230,8 @@ As a helpful professional Catalog Librarian, analyze the provided ${image ? 'ima
             }
             // For translator mode, we directly return the JSON response
             const response = result.response;
+            console.log(response);
+            console.log(stringify(response));
             return res.status(200).json(response);
         } else {
             result = await textModel.generateContent([prompt, text]);
