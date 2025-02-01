@@ -1,5 +1,6 @@
 // /api/splitCsv.js
 import { MongoClient } from 'mongodb';
+import crypto from 'crypto';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const CHUNK_SIZE = 200; // lines per chunk
@@ -24,11 +25,12 @@ export default async function handler(req, res) {
         for (let i = 0; i < data.length; i += CHUNK_SIZE) {
             const chunkContent = [header, ...data.slice(i, i + CHUNK_SIZE)].join('\n');
             const result = await chunks.insertOne({
+                _id: crypto.randomUUID(), // Using UUID instead of ObjectId
                 content: chunkContent,
                 createdAt: new Date(),
                 expiresAt: new Date(Date.now() + 1000 * 60 * 60) // 1 hour expiry
             });
-            chunkIds.push(result.insertedId.toString());
+            chunkIds.push(result.insertedId); // This will now be a string UUID
         }
 
         await client.close();

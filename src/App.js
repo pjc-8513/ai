@@ -206,6 +206,32 @@ function App() {
                                                 href={`/api/download/${chunkId}`} 
                                                 download={`chunk_${index + 1}.csv`}
                                                 className="text-blue-600 hover:underline"
+                                                onClick={async (e) => {
+                                                    e.preventDefault();
+                                                    try {
+                                                        const response = await fetch(`/api/download/${chunkId}`);
+                                                        if (!response.ok) {
+                                                            const error = await response.json();
+                                                            throw new Error(error.error || 'Download failed');
+                                                        }
+                                                        
+                                                        // Get the blob from the response
+                                                        const blob = await response.blob();
+                                                        
+                                                        // Create a download link
+                                                        const url = window.URL.createObjectURL(blob);
+                                                        const a = document.createElement('a');
+                                                        a.href = url;
+                                                        a.download = `chunk_${index + 1}.csv`;
+                                                        document.body.appendChild(a);
+                                                        a.click();
+                                                        window.URL.revokeObjectURL(url);
+                                                        document.body.removeChild(a);
+                                                    } catch (error) {
+                                                        console.error('Download error:', error);
+                                                        setError(error.message);
+                                                    }
+                                                }}
                                             >
                                                 Download Part {index + 1}
                                             </a>
