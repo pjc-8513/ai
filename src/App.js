@@ -54,9 +54,6 @@ function App() {
             return;
         }
     
-        // Add debug logging
-        console.log("Uploading file:", file.name, file.size);
-    
         if (file.size > 25_000_000) {
             setError("File is too large! Please upload a file smaller than 25MB.");
             return;
@@ -68,29 +65,31 @@ function App() {
         }
     
         setLoading(true);
-        const formData = new FormData();
-        formData.append("file", file);
     
         try {
-            // Add debug logging
-            console.log("Sending request to /api/splitCsv");
+            // Read file content instead of sending the file
+            const fileContent = await file.text();
+            
             const response = await fetch("/api/splitCsv", {
                 method: "POST",
-                body: formData,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    content: fileContent,
+                    filename: file.name
+                }),
             });
     
-            // Add debug logging
-            console.log("Response status:", response.status);
             const data = await response.json();
-            console.log("Response data:", data);
     
             if (!response.ok) {
                 throw new Error(data.error || "An error occurred");
             }
     
-            setFiles(data.files);
+            // Instead of file paths, we'll get back chunk IDs
+            setFiles(data.chunkIds);
         } catch (err) {
-            console.error("Upload error:", err);
             setError(err.message);
         } finally {
             setLoading(false);
@@ -201,14 +200,14 @@ function App() {
                                 <div>
                                     <h3 className="text-lg font-medium mt-4">Download split files:</h3>
                                     <ul>
-                                    {files.map((file, index) => (
-                                        <li key={index}>
+                                    {files.map((chunkId, index) => (
+                                        <li key={chunkId}>
                                             <a 
-                                                href={`/api/download?file=${encodeURIComponent(file)}`} 
-                                                download
+                                                href={`/api/download/${chunkId}`} 
+                                                download={`chunk_${index + 1}.csv`}
                                                 className="text-blue-600 hover:underline"
                                             >
-                                                {file.split('/').pop()}
+                                                Download Part {index + 1}
                                             </a>
                                         </li>
                                     ))}

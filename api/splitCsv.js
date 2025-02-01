@@ -1,64 +1,44 @@
-import formidable from 'formidable';
-import fs from 'fs';
-import path from 'path';
-import { promisify } from 'util';
-import { v4 as uuidv4 } from 'uuid';
-import serveStatic from 'serve-static';
+// /api/splitCsv.js
+import { MongoClient } from 'mongodb';
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-const writeFile = promisify(fs.writeFile);
-const uploadDir = path.join('/tmp', 'uploads');
-
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const serve = serveStatic(uploadDir, { index: false });
+const MONGODB_URI = process.env.MONGODB_URI;
+const CHUNK_SIZE = 200; // lines per chunk
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const form = new formidable.IncomingForm();
-  form.uploadDir = uploadDir;
-  form.keepExtensions = true;
-
-  form.parse(req, (err, fields, files) => {
-    if (err) {
-      console.error('Error parsing form:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const filePath = file.filepath;
-    const filename = file.name;
-    
+    try {
+        const { content, filename } = req.body;
+        const lines = content.split(/\r?\n/);
+        const header = lines[0];
+        const data = lines.slice(1);
+        
+        const client = await MongoClient.connect(MONGODB_URI);
+        const db = client.db('csvSplitter');
+        const chunks = db.collection('chunks');
 
-    const fileContent = fs.readFileSync(filePath, 'utf8');
-    const chunks = splitCsvContent(fileContent);
+        // Store chunks in MongoDB
+        const chunkIds = [];
+        for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+            const chunkContent = [header, ...data.slice(i, i + CHUNK_SIZE)].join('\n');
+            const result = await chunks.insertOne({
+                content: chunkContent,
+                createdAt: new Date(),
+                expiresAt: new Date(Date.now() + 1000 * 60 * 60) // 1 hour expiry
+            });
+            chunkIds.push(result.insertedId.toString());
+        }
 
-    // Process chunks...
-    console.log(chunks);
+        await client.close();
 
-    return res.json({ message: 'File uploaded and processed successfully' });
-  });
-}
-
-function splitCsvContent(content, chunkSize = 200) {
-  const lines = content.split(/\r?\n/);
-  if (lines.length === 0) throw new Error('Empty file');
-
-  const header = lines[0];
-  const data = lines.slice(1);
-  const chunks = [];
-
-  for (let i = 0; i < data.length; i += chunkSize) {
-    chunks.push([header, ...data.slice(i, i + chunkSize)].join('\n'));
-  }
-  return chunks;
+        return res.status(200).json({ 
+            message: 'File split successfully!', 
+            chunkIds 
+        });
+    } catch (error) {
+        console.error('Error processing file:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
 }
