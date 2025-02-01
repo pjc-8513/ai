@@ -26,23 +26,66 @@ function App() {
             const response = await fetch('/api/analyze', {
                 method: 'POST',
                 body: formData,
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
+              });
+          
+              const data = await response.json();
+          
+              if (!response.ok) {
                 throw new Error(data.error || 'An error occurred');
+              }
+          
+              if (mode === 'translator') {
+                const candidates = data.candidates;
+                const content = candidates[0].content;
+                const parts = content.parts;
+                const text = parts[0].text;
+                const jsonData = JSON.parse(text);
+                const original = jsonData.response.original;
+                const translated = jsonData.response.translated;
+                const transliterated = jsonData.response.transliterated;
+          
+                const formattedOutput = (
+                  <div>
+                    <h4>Original:</h4>
+                    <ul>
+                      {Object.keys(original).map((key) => (
+                        <li key={key}>
+                          <strong>{key}</strong>: {original[key]}
+                        </li>
+                      ))}
+                    </ul>
+          
+                    <h4>Translated:</h4>
+                    <ul>
+                      {Object.keys(translated).map((key) => (
+                        <li key={key}>
+                          <strong>{key}</strong>: {translated[key]}
+                        </li>
+                      ))}
+                    </ul>
+          
+                    <h4>Transliterated:</h4>
+                    <ul>
+                      {Object.keys(transliterated).map((key) => (
+                        <li key={key}>
+                          <strong>{key}</strong>: {transliterated[key]}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+          
+                setOutputText(formattedOutput);
+              } else {
+                setOutputText(data.result || '');
+              }
+            } catch (error) {
+              console.error("Analysis error:", error);
+              setError(error.message || 'Error analyzing input');
+            } finally {
+              setLoading(false);
             }
-
-            setOutputText(data.result || '');
-
-        } catch (error) {
-            console.error("Analysis error:", error);
-            setError(error.message || 'Error analyzing input');
-        } finally {
-            setLoading(false);
-        }
-    };
+          };
 
     const handleFileUpload = async (event) => {
         setError(null);
@@ -337,10 +380,14 @@ function App() {
                                 <div className="mt-6">
                                     <h3 className="text-lg font-medium mb-2">Response</h3>
                                     <div className="p-4 bg-gray-50 rounded-lg min-h-[100px] whitespace-pre-wrap">
-                                        {outputText}
+                                    {typeof outputText === 'string' ? (
+                                        <pre>{outputText}</pre>
+                                    ) : (
+                                        outputText
+                                    )}
                                     </div>
                                 </div>
-                            )}
+                                )}
                         </div>
                     )}
                 </div>
