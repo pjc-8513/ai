@@ -8,6 +8,8 @@ function App() {
     const [image, setImage] = useState(null);
     const [mode, setMode] = useState('translator');
     const [files, setFiles] = useState([]);
+    // First, add the state variable near the other useState declarations
+    const [minHolds, setMinHolds] = useState(0);
     const fileInputRef = useRef(null);
 
     const handleAnalyze = async () => {
@@ -87,30 +89,30 @@ function App() {
             }
           };
 
+    // Then, update the handleFileUpload function to include minHolds in the request
     const handleFileUpload = async (event) => {
         setError(null);
         setFiles([]);
         const file = event.target.files[0];
-    
+
         if (!file) {
             setError("Please upload a txt file!");
             return;
         }
-    
+
         if (file.size > 25_000_000) {
             setError("File is too large! Please upload a file smaller than 25MB.");
             return;
         }
-    
+
         if (!file.name.endsWith(".txt")) {
             setError("Please upload a txt file!");
             return;
         }
-    
+
         setLoading(true);
-    
+
         try {
-            // Read file content instead of sending the file
             const fileContent = await file.text();
             
             const response = await fetch("/api/splitCsv", {
@@ -120,17 +122,17 @@ function App() {
                 },
                 body: JSON.stringify({
                     content: fileContent,
-                    filename: file.name
+                    filename: file.name,
+                    minHolds: parseInt(minHolds, 10)
                 }),
             });
-    
+
             const data = await response.json();
-    
+
             if (!response.ok) {
                 throw new Error(data.error || "An error occurred");
             }
-    
-            // Instead of file paths, we'll get back chunk IDs
+
             setFiles(data.chunkIds);
         } catch (err) {
             setError(err.message);
@@ -256,7 +258,7 @@ function App() {
                                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                             }`}
                         >
-                            CSV Splitter
+                            CSV Magic
                         </button>
                     </div>
 
@@ -271,7 +273,19 @@ function App() {
                     )}
 
                     {mode === 'csv' && (
-                        <div>
+                            <div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Minimum Holds Threshold
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={minHolds}
+                                        onChange={(e) => setMinHolds(Math.max(0, parseInt(e.target.value) || 0))}
+                                        className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                            </div>
                             <input type="file" accept=".txt,.csv" onChange={handleFileUpload} />
                             {loading && <p>Processing file...</p>}
                             {files.length > 0 && (
