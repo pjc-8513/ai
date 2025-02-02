@@ -1,4 +1,6 @@
 import React, { useState, useRef } from 'react';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 
 function App() {
     const [inputText, setInputText] = useState('');
@@ -10,6 +12,9 @@ function App() {
     const [files, setFiles] = useState([]);
     // First, add the state variable near the other useState declarations
     const [minHolds, setMinHolds] = useState(0);
+    // Add these state variables with the other useState declarations
+    const [startDate, setStartDate] = useState(null);
+    const [endDate, setEndDate] = useState(null);
     const fileInputRef = useRef(null);
 
     const handleAnalyze = async () => {
@@ -137,7 +142,11 @@ function App() {
                 body: JSON.stringify({
                     content: fileContent,
                     filename: file.name,
-                    minHolds: parseInt(minHolds, 10)
+                    minHolds: parseInt(minHolds, 10),
+                    dateRange: startDate && endDate ? {
+                        start: startDate.toISOString().split('T')[0].replace(/-/g, ''),
+                        end: endDate.toISOString().split('T')[0].replace(/-/g, '')
+                    } : null
                 }),
             });
 
@@ -286,21 +295,61 @@ function App() {
                         </div>
                     )}
 
-                    {mode === 'csv' && (
-                            <div>
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Minimum Holds Threshold
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={minHolds}
-                                        onChange={(e) => setMinHolds(Math.max(0, parseInt(e.target.value) || 0))}
-                                        className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    />
+                {mode === 'csv' && (
+                    <div>
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Minimum Holds Threshold
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={minHolds}
+                                onChange={(e) => setMinHolds(Math.max(0, parseInt(e.target.value) || 0))}
+                                className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+                        
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Date Range Filter (RECD_DATE)
+                            </label>
+                            <div className="flex gap-2 items-center">
+                                <DatePicker
+                                    selected={startDate}
+                                    onChange={date => setStartDate(date)}
+                                    selectsStart
+                                    startDate={startDate}
+                                    endDate={endDate}
+                                    placeholderText="Start Date"
+                                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                <span className="text-gray-500">to</span>
+                                <DatePicker
+                                    selected={endDate}
+                                    onChange={date => setEndDate(date)}
+                                    selectsEnd
+                                    startDate={startDate}
+                                    endDate={endDate}
+                                    minDate={startDate}
+                                    placeholderText="End Date"
+                                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                {(startDate || endDate) && (
+                                    <button
+                                        onClick={() => {
+                                            setStartDate(null);
+                                            setEndDate(null);
+                                        }}
+                                        className="text-red-500 hover:text-red-700"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
                             </div>
-                            <input type="file" accept=".txt,.csv" onChange={handleFileUpload} />
+                        </div>
+                        
+                        <input type="file" accept=".txt,.csv" onChange={handleFileUpload} />
                             {loading && <p>Processing file...</p>}
                             {files.length > 0 && (
                                 <div>

@@ -9,6 +9,7 @@
     "express-rate-limit": "^7.5.0",
     "formidable": "^2.0.1",
     "mongodb": "^6.13.0",
+    "react-datepicker": "^8.0.0",
     "react-dom": "^19.0.0",
     "react-scripts": "^5.0.1",
     "web-vitals": "^4.2.4"
