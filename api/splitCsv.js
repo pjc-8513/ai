@@ -66,14 +66,6 @@ export default async function handler(req, res) {
             expiresAt: new Date(Date.now() + 1000 * 60 * 60)
         });
 
-        // Store the titles_holds file
-        await chunks.insertOne({
-            _id: 'titles_holds',  // Fixed ID for this special file
-            content: titleHoldsContent.join(''),
-            createdAt: new Date(),
-            expiresAt: new Date(Date.now() + 1000 * 60 * 60)
-        });
-
         // Store regular chunks as before
         const chunkIds = ['titles_holds']; // Start with our special file
         for (let i = 0; i < data.length; i += CHUNK_SIZE) {
