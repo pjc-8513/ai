@@ -93,6 +93,20 @@ function App() {
     const handleFileUpload = async (event) => {
         setError(null);
         setFiles([]);
+
+        // Clear any existing chunks first
+        try {
+            const clearResponse = await fetch('/api/clearChunks', {
+                method: 'POST',
+            });
+            if (!clearResponse.ok) {
+                throw new Error('Failed to clear existing chunks');
+            }
+        } catch (err) {
+            console.error('Error clearing chunks:', err);
+            // Continue anyway - not a fatal error
+        }
+
         const file = event.target.files[0];
 
         if (!file) {
