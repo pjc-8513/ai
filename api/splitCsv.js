@@ -22,10 +22,10 @@ export default async function handler(req, res) {
 
         const headerColumns = header.split(',');
         const recdDateIndex = headerColumns.findIndex(col => 
-            col.trim().replace(/"/g, '').toUpperCase() === 'RECD_DATE'
+            col.trim().replace(/"/g, '').toUpperCase() === 'Recv Date'
         );
         if (recdDateIndex !== -1) {
-            titleHoldsHeader[0] = 'Title,Holds,RECD_DATE';
+            titleHoldsHeader[0] = 'Title,Holds,Recv Date';
             hasRecdDate = true;
         }
 

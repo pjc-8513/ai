@@ -312,7 +312,7 @@ function App() {
                         
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Date Range Filter (RECD_DATE)
+                                Date Range Filter (Recv Date)
                             </label>
                             <div className="flex gap-2 items-center">
                                 <DatePicker
