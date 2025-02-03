@@ -17,16 +17,25 @@ export default async function handler(req, res) {
         const db = client.db('csvSplitter');
         const chunks = db.collection('chunks');
 
-        const titleHoldsHeader = ['Title,Holds'];
+        const titleHoldsHeader = ['Title,Holds,Item Count,Item Records'];
         let hasRecdDate = false;
+        let hasItemRecords = false;
 
         const headerColumns = header.split(',');
         const recdDateIndex = headerColumns.findIndex(col => 
             col.trim().replace(/"/g, '') === 'Recv Date'
         );
+        const itemRecordsIndex = headerColumns.findIndex(col => 
+            col.trim().replace(/"/g, '') === 'Record Number(Item)'
+        );
+
         if (recdDateIndex !== -1) {
-            titleHoldsHeader[0] = 'Title,Holds,Recv Date';
+            titleHoldsHeader[0] = 'Title,Holds,Item Count,Item Records,Recv Date';
             hasRecdDate = true;
+        }
+
+        if (itemRecordsIndex !== -1) {
+            hasItemRecords = true;
         }
 
         const titleHoldsContent = [titleHoldsHeader + '\n'];
@@ -48,23 +57,29 @@ export default async function handler(req, res) {
             // Handle date filtering
             if (dateRange && hasRecdDate && fields[recdDateIndex]) {
                 const recdDate = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
-                
-                // Standardize date format to YYYYMMDD for consistent comparison
                 const [month, day, year] = recdDate.split('-');
                 const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
-                
-                // Convert dateRange to YYYYMMDD format as well
                 const startDate = dateRange.start.replace(/-/g, '');
                 const endDate = dateRange.end.replace(/-/g, '');
-            
+
                 // Skip if date is not within range
                 if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
                     return;
                 }
             }
             
+            // Process item records
+            let itemCount = 0;
+            let itemRecords = '';
+            if (hasItemRecords && fields[itemRecordsIndex]) {
+                const itemRecordsField = fields[itemRecordsIndex].replace(/^"|"$/g, '').trim();
+                const itemRecordsList = itemRecordsField.split(';').map(item => item.trim());
+                itemCount = itemRecordsList.length;
+                itemRecords = itemRecordsField;
+            }
+            
             // If we get here, the record passes all filters
-            let titleHoldsLine = `"${title}",${totalHolds}`;
+            let titleHoldsLine = `"${title}",${totalHolds},${itemCount},"${itemRecords}"`;
             
             if (hasRecdDate) {
                 if (fields[recdDateIndex]) {
