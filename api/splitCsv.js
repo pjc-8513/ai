@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
         const headerColumns = header.split(',');
         const recdDateIndex = headerColumns.findIndex(col => 
-            col.trim().replace(/"/g, '').toUpperCase() === 'Recv Date'
+            col.trim().replace(/"/g, '') === 'Recv Date'
         );
         if (recdDateIndex !== -1) {
             titleHoldsHeader[0] = 'Title,Holds,Recv Date';
