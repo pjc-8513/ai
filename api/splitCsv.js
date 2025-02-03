@@ -47,14 +47,18 @@ export default async function handler(req, res) {
 
             // Handle date filtering
             if (dateRange && hasRecdDate && fields[recdDateIndex]) {
+                const recdDate = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
                 
-const recdDate = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
-const [month, day, year] = recdDate.split('-');
-const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
-
+                // Standardize date format to YYYYMMDD for consistent comparison
+                const [month, day, year] = recdDate.split('-');
+                const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
+                
+                // Convert dateRange to YYYYMMDD format as well
+                const startDate = dateRange.start.replace(/-/g, '');
+                const endDate = dateRange.end.replace(/-/g, '');
+            
                 // Skip if date is not within range
-                if (recdDate && 
-                    (recdDate < dateRange.start || recdDate > dateRange.end)) {
+                if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
                     return;
                 }
             }
