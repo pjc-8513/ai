@@ -235,7 +235,7 @@ function App() {
             setError('');
             setResults([]);
             
-            const url = `http://id.loc.gov/authorities/names/activitystreams/label-updates/${number}`;
+            const url = `https://id.loc.gov/authorities/names/activitystreams/label-updates/${number}`;
             const searchUrl = 'https://catalog.akronlibrary.org/search/a?SEARCH=';
             const delay = 1000; // 1 second delay
         
