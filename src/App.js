@@ -234,30 +234,53 @@ function App() {
             setIsLoading(true);
             setError('');
             setResults([]);
-    
+            
+            const url = `http://id.loc.gov/authorities/names/activitystreams/label-updates/${number}`;
+            const searchUrl = 'https://catalog.akronlibrary.org/search/a?SEARCH=';
+            const delay = 1000; // 1 second delay
+        
             try {
-                // Replace with your actual API endpoint
-                const response = await fetch('/api/findLabels', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ number }),
-                });
-    
-                const data = await response.json();
-    
-                if (!response.ok) {
-                    throw new Error(data.error || 'Error finding labels');
+              const response = await fetch(url);
+              const data = await response.json();
+              
+              const labels = data.orderedItems.map(item => {
+                try {
+                  const summary = item.summary;
+                  const originalLabel = summary.split("from '")[1].split("' to")[0];
+                  console.log('originalLabel: ', originalLabel);
+                  return originalLabel;
+                } catch (error) {
+                  console.error(`Error processing item: ${error}`);
+                  return null;
                 }
-    
-                setResults(data.results || []);
+              }).filter(Boolean);
+        
+              // Process labels sequentially with delay
+              const updatedLabels = [];
+              for (let i = 0; i < labels.length; i++) {
+                const label = labels[i];
+                await new Promise(resolve => setTimeout(resolve, delay));
+                
+                try {
+                  const response = await fetch(searchUrl + encodeURIComponent(label));
+                  console.log(searchUrl + encodeURIComponent(label));
+                  const html = await response.text();
+                  
+                  if (!html.includes('No matches found')) {
+                    updatedLabels.push(label);
+                    setResults(prev => [...prev, label]);
+                  }
+                } catch (error) {
+                  console.error(`Error searching ${label}: ${error}`);
+                }
+              }
             } catch (error) {
-                setError(error.message);
+              setError('Error fetching or processing data. Please try again.');
+              console.error(`Error: ${error}`);
             } finally {
-                setIsLoading(false);
+              setIsLoading(false);
             }
-        };
+          };
     
 
         return (
@@ -462,6 +485,7 @@ function App() {
                                                 value={number}
                                                 onChange={(e) => setNumber(e.target.value)}
                                                 placeholder="Enter number"
+                                                min="1" // Set minimum value to 1
                                                 className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                             />
                                             <button
