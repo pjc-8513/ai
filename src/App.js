@@ -16,6 +16,10 @@ function App() {
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const fileInputRef = useRef(null);
+    // Add these state variables for Authorities mode
+    const [number, setNumber] = useState('');
+    const [results, setResults] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleAnalyze = async () => {
         setLoading(true);
@@ -225,91 +229,124 @@ function App() {
         setImage(null);
     };
 
-    return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4">
-            <div className="max-w-2xl mx-auto">
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h1 className="text-2xl font-bold text-center text-blue-600 mb-2">
-                        AI Librarian
-                    </h1>
+        // Add this function for handling label search
+        const handleFindLabels = async () => {
+            setIsLoading(true);
+            setError('');
+            setResults([]);
+    
+            try {
+                // Replace with your actual API endpoint
+                const response = await fetch('/api/findLabels', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ number }),
+                });
+    
+                const data = await response.json();
+    
+                if (!response.ok) {
+                    throw new Error(data.error || 'Error finding labels');
+                }
+    
+                setResults(data.results || []);
+            } catch (error) {
+                setError(error.message);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+    
 
-                    <div className="flex justify-center gap-4 mb-6">
-                        <button
-                            onClick={() => {
-                                setMode('translator');
-                                setError('');
-                                setOutputText('');
-                                setImage(null);
-                                setFiles([]);
-                            }}
-                            className={`px-4 py-2 rounded-lg font-medium ${
-                                mode === 'translator'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                            }`}
-                        >
-                            Translator
-                        </button>
-                        <button
-                            onClick={() => {
-                                setMode('coder');
-                                setError('');
-                                setOutputText('');
-                                clearImage();
-                                setFiles([]);
-                                alert('This is more experimental and often fails.');
-                            }}
-                            className={`px-4 py-2 rounded-lg font-medium ${
-                                mode === 'coder'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                            }`}
-                        >
-                            Coder
-                        </button>
-                        <button
-                            onClick={() => {
-                                setMode('csv');
-                                setError('');
-                                setOutputText('');
-                                setImage(null);
-                                setFiles([]);
-                            }}
-                            className={`px-4 py-2 rounded-lg font-medium ${
-                                mode === 'csv'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                            }`}
-                        >
-                            CSV Magic
-                        </button>
-                        <button
-                            onClick={() => {
-                                setMode('authorities');
-                                setError('');
-                                setOutputText('');
-                                setImage(null);
-                                setFiles([]);
-                            }}
-                            className={`px-4 py-2 rounded-lg font-medium ${
-                                mode === 'authorities'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                            }`}
-                        >
-                            Authorities
-                        </button>
-                    </div>
-
-                    {error && (
-                        <div className="bg-red-50 border-l-4 border-red-500 p-4">
-                            <div className="flex">
-                                <div className="ml-3">
-                                    <p className="text-sm text-red-700">{error}</p>
+        return (
+            <div className="min-h-screen bg-gray-50 py-8 px-4">
+                <div className="max-w-2xl mx-auto">
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h1 className="text-2xl font-bold text-center text-blue-600 mb-2">
+                            AI Librarian
+                        </h1>
+        
+                        <div className="flex justify-center gap-4 mb-6">
+                            <button
+                                onClick={() => {
+                                    setMode('translator');
+                                    setError('');
+                                    setOutputText('');
+                                    setImage(null);
+                                    setFiles([]);
+                                }}
+                                className={`px-4 py-2 rounded-lg font-medium ${
+                                    mode === 'translator'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                            >
+                                Translator
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setMode('coder');
+                                    setError('');
+                                    setOutputText('');
+                                    clearImage();
+                                    setFiles([]);
+                                    alert('This is more experimental and often fails.');
+                                }}
+                                className={`px-4 py-2 rounded-lg font-medium ${
+                                    mode === 'coder'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                            >
+                                Coder
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setMode('csv');
+                                    setError('');
+                                    setOutputText('');
+                                    setImage(null);
+                                    setFiles([]);
+                                }}
+                                className={`px-4 py-2 rounded-lg font-medium ${
+                                    mode === 'csv'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                            >
+                                CSV Magic
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setMode('authorities');
+                                    setError('');
+                                    setOutputText('');
+                                    setImage(null);
+                                    setFiles([]);
+                                    setNumber('');
+                                    setResults([]);
+                                }}
+                                className={`px-4 py-2 rounded-lg font-medium ${
+                                    mode === 'authorities'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                            >
+                                Authorities
+                            </button>
+                        </div>
+        
+                        {error && (
+                            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+                                <div className="flex">
+                                    <div className="ml-3">
+                                        <p className="text-sm text-red-700">{error}</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
                 {mode === 'csv' && (
                     <div>
@@ -417,7 +454,41 @@ function App() {
                         </div>
                     )}
 
-                    {mode !== 'csv' && (
+                {mode === 'authorities' && (
+                                    <div className="space-y-6">
+                                        <div className="flex gap-4">
+                                            <input
+                                                type="number"
+                                                value={number}
+                                                onChange={(e) => setNumber(e.target.value)}
+                                                placeholder="Enter number"
+                                                className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            />
+                                            <button
+                                                onClick={handleFindLabels}
+                                                disabled={isLoading || !number}
+                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                            >
+                                                {isLoading ? 'Processing...' : 'Find Label Changes'}
+                                            </button>
+                                        </div>
+
+                                        {results.length > 0 && (
+                                            <div className="mt-4">
+                                                <h3 className="text-lg font-semibold mb-2">Found Labels:</h3>
+                                                <div className="max-h-96 overflow-y-auto border rounded-md p-4">
+                                                    {results.map((label, index) => (
+                                                        <div key={index} className="mb-2">
+                                                            {label}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                    {mode !== 'csv' && mode !== 'authorities' && (
                         <div className="space-y-6">
                             <textarea
                                 value={inputText}
@@ -483,10 +554,10 @@ function App() {
                                 )}
                         </div>
                     )}
-                </div>
-            </div>
+             </div>
         </div>
-    );
+    </div>
+);
 }
 
 export default App;
