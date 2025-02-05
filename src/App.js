@@ -283,6 +283,22 @@ function App() {
                         >
                             CSV Magic
                         </button>
+                        <button
+                            onClick={() => {
+                                setMode('authorities');
+                                setError('');
+                                setOutputText('');
+                                setImage(null);
+                                setFiles([]);
+                            }}
+                            className={`px-4 py-2 rounded-lg font-medium ${
+                                mode === 'authorities'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                        >
+                            Authorities
+                        </button>
                     </div>
 
                     {error && (
