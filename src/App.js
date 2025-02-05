@@ -493,14 +493,14 @@ function App() {
                                                 {isLoading ? 'Processing...' : 'Find Label Changes'}
                                             </button>
                                             {results.length > 0 && (
-                                                <Button
+                                                <button
                                                 onClick={handleDownload}
                                                 variant="outline"
                                                 className="flex gap-2"
                                                 >
                                                 <Download size={16} />
                                                 Download Results
-                                                </Button>
+                                                </button>
                                             )}
                                             </div>
 
