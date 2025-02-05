@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import { Download } from 'lucide-react';
 
 function App() {
     const [inputText, setInputText] = useState('');
@@ -236,44 +237,29 @@ function App() {
             setResults([]);
             
             const url = `https://id.loc.gov/authorities/names/activitystreams/label-updates/${number}`;
-            const searchUrl = 'https://catalog.akronlibrary.org/search/a?SEARCH=';
-            const delay = 1000; // 1 second delay
         
             try {
               const response = await fetch(url);
               const data = await response.json();
               
-              const labels = data.orderedItems.map(item => {
+              const personalNameLabels = data.orderedItems
+              .filter(item => {
+                // Check if the item has object.type array containing "madsrdf:PersonalName"
+                return item.object?.type?.includes('madsrdf:PersonalName');
+              })
+              .map(item => {
                 try {
                   const summary = item.summary;
                   const originalLabel = summary.split("from '")[1].split("' to")[0];
-                  console.log('originalLabel: ', originalLabel);
                   return originalLabel;
                 } catch (error) {
                   console.error(`Error processing item: ${error}`);
                   return null;
                 }
-              }).filter(Boolean);
+              })
+              .filter(Boolean);
         
-              // Process labels sequentially with delay
-              const updatedLabels = [];
-              for (let i = 0; i < labels.length; i++) {
-                const label = labels[i];
-                await new Promise(resolve => setTimeout(resolve, delay));
-                
-                try {
-                  const response = await fetch(searchUrl + encodeURIComponent(label));
-                  console.log(searchUrl + encodeURIComponent(label));
-                  const html = await response.text();
-                  
-                  if (!html.includes('No matches found')) {
-                    updatedLabels.push(label);
-                    setResults(prev => [...prev, label]);
-                  }
-                } catch (error) {
-                  console.error(`Error searching ${label}: ${error}`);
-                }
-              }
+              setResults(personalNameLabels);
             } catch (error) {
               setError('Error fetching or processing data. Please try again.');
               console.error(`Error: ${error}`);
@@ -281,7 +267,18 @@ function App() {
               setIsLoading(false);
             }
           };
-    
+
+          const handleDownload = () => {
+            const blob = new Blob([results.join('\n')], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'personal_name_labels.txt';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          };
 
         return (
             <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -495,11 +492,26 @@ function App() {
                                             >
                                                 {isLoading ? 'Processing...' : 'Find Label Changes'}
                                             </button>
-                                        </div>
+                                            {results.length > 0 && (
+                                                <Button
+                                                onClick={handleDownload}
+                                                variant="outline"
+                                                className="flex gap-2"
+                                                >
+                                                <Download size={16} />
+                                                Download Results
+                                                </Button>
+                                            )}
+                                            </div>
+
+                                            {error && (
+                                            <div className="text-red-500 mb-4">{error}</div>
+                                            )}
 
                                         {results.length > 0 && (
+
                                             <div className="mt-4">
-                                                <h3 className="text-lg font-semibold mb-2">Found Labels:</h3>
+                                                <h3 className="text-lg font-semibold mb-2"> Found Personal Name Labels ({results.length}):</h3>
                                                 <div className="max-h-96 overflow-y-auto border rounded-md p-4">
                                                     {results.map((label, index) => (
                                                         <div key={index} className="mb-2">
