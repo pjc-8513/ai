@@ -272,13 +272,15 @@ function App() {
             } else if (activityStream === 'subject-updates') {
                 let madsXmlHrefs = [];
                 const maxItems = 25;
-                let currentPage = number;
-
-                while (madsXmlHrefs.length < maxItems) {
-                    const url = `https://id.loc.gov/authorities/subjects/activitystreams/feed/${currentPage}`;
-                    const response = await fetch(url);
+                let nextPageUrl = `https://id.loc.gov/authorities/subjects/activitystreams/feed/${number}`;
+            
+                while (madsXmlHrefs.length < maxItems && nextPageUrl) {
+                    const response = await fetch(nextPageUrl);
                     const data = await response.json();
-
+            
+                    // Extract the "next" URL from the API response
+                    nextPageUrl = data.next;
+            
                     const pageMadsXmlHrefs = data.orderedItems
                         .filter(item => {
                             // Check if the item has type "Update" and object.type array containing "madsrdf:Topic", "madsrdf:SimpleType", "madsrdf:Authority"
@@ -300,23 +302,20 @@ function App() {
                             }
                         })
                         .filter(Boolean);
-
+            
                     madsXmlHrefs = madsXmlHrefs.concat(pageMadsXmlHrefs);
-
-                    // Stop if no more items are found
-                    if (pageMadsXmlHrefs.length === 0) {
+            
+                    // Stop if we've reached the desired number of items
+                    if (madsXmlHrefs.length >= maxItems) {
                         break;
                     }
-
-                    // Move to the next page
-                    currentPage++;
                 }
-
+            
                 console.log(madsXmlHrefs.slice(0, maxItems)); // Trim to 25 items
-
+            
                 // Convert all URLs to HTTPS to avoid Mixed Content errors
                 const httpsMadsXmlHrefs = madsXmlHrefs.map(href => href.replace(/^http:/, 'https:'));
-
+            
                 // Process each madsXmlHrefs using a for...of loop to handle async/await properly
                 const processedData = [];
                 for (const href of httpsMadsXmlHrefs.slice(0, maxItems)) {
@@ -329,7 +328,7 @@ function App() {
                         console.error(`Error fetching MADS XML: ${error}`);
                     }
                 }
-
+            
                 setResults(processedData); // Update results with processed data
             }
         } catch (error) {
