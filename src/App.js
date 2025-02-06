@@ -2,13 +2,6 @@ import React, { useState, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { Download } from 'lucide-react';
-import { MongoClient } from 'mongodb';
-
-async function connectToDatabase() {
-    const client = await MongoClient.connect(MONGODB_URI);
-    await client.connect();
-    return client.db('Cluster0');
-}
 
 function App() {
     const [inputText, setInputText] = useState('');
