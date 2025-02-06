@@ -2,6 +2,13 @@ import React, { useState, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { Download } from 'lucide-react';
+import { MongoClient } from 'mongodb';
+
+async function connectToDatabase() {
+    const client = await MongoClient.connect(MONGODB_URI);
+    await client.connect();
+    return client.db('Cluster0');
+}
 
 function App() {
     const [inputText, setInputText] = useState('');
@@ -23,6 +30,7 @@ function App() {
     const [isLoading, setIsLoading] = useState(false);
     //Drop down menu
     const [activityStream, setActivityStream] = useState('label-updates'); // Default to label-updates
+    const MONGODB_URI = process.env.MONGODB_URI;
 
     const activityStreamOptions = [
         { value: 'label-updates', label: 'Label Updates' },
@@ -344,6 +352,7 @@ function App() {
                         };
             
                         // Insert the document into MongoDB
+                        const db = await connectToDatabase();
                         await db.collection('mads_entries').insertOne(doc);
                         console.log(`Inserted document for href: ${href}`);
                     } catch (error) {
