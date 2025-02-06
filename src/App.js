@@ -331,29 +331,35 @@ function App() {
                     try {
                         const response = await fetch(href);
                         const xml = await response.text();
-            
+                
                         // Parse the XML content using fast-xml-parser
                         const parser = new XMLParser();
                         const parsedData = parser.parse(xml);
-            
+                
                         // Extract relevant fields from the parsed XML
                         const marcRecord = parsedData['marcxml:record'];
                         const datafields = marcRecord['marcxml:datafield'];
-            
+                
                         const mainEntry = datafields.find(df => df['@_tag'] === '150');
                         const seeAlso = datafields.filter(df => df['@_tag'] === '450');
                         const relatedEntries = datafields.filter(df => df['@_tag'] === '550' && df['marcxml:subfield'].find(sf => sf['@_code'] === 'a'));
-            
+                
                         const doc = {
-                            _id: href,
+                            href,
                             mainEntry: mainEntry['marcxml:subfield'].find(sf => sf['@_code'] === 'a')._,
                             seeAlso: seeAlso.map(sa => sa['marcxml:subfield'].find(sf => sf['@_code'] === 'a')._),
                             relatedEntries: relatedEntries.map(re => re['marcxml:subfield'].find(sf => sf['@_code'] === 'a')._)
                         };
-            
-                        // Insert the document into MongoDB
-                        const db = await connectToDatabase();
-                        await db.collection('mads_entries').insertOne(doc);
+                
+                        // Send the document to the API route
+                        await fetch('/api/saveMadsEntry', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(doc),
+                        });
+                
                         console.log(`Inserted document for href: ${href}`);
                     } catch (error) {
                         console.error(`Error processing MADS XML for href: ${href}`, error);
