@@ -316,38 +316,31 @@ function App() {
                 // Convert all URLs to HTTPS to avoid Mixed Content errors
                 const httpsMadsXmlHrefs = madsXmlHrefs.map(href => href.replace(/^http:/, 'https:'));
             
-                // Process each MADS XML file and insert into MongoDB
-                const parseString = require('xml2js').parseString;
+                // Use fast-xml-parser for XML parsing
+                const { XMLParser } = require('fast-xml-parser');
             
                 for (const href of httpsMadsXmlHrefs.slice(0, maxItems)) {
                     try {
                         const response = await fetch(href);
                         const xml = await response.text();
             
-                        // Parse the XML content
-                        const parsedData = await new Promise((resolve, reject) => {
-                            parseString(xml, (err, result) => {
-                                if (err) {
-                                    reject(err);
-                                } else {
-                                    resolve(result);
-                                }
-                            });
-                        });
+                        // Parse the XML content using fast-xml-parser
+                        const parser = new XMLParser();
+                        const parsedData = parser.parse(xml);
             
                         // Extract relevant fields from the parsed XML
                         const marcRecord = parsedData['marcxml:record'];
                         const datafields = marcRecord['marcxml:datafield'];
             
-                        const mainEntry = datafields.find(df => df.$.tag === '150');
-                        const seeAlso = datafields.filter(df => df.$.tag === '450');
-                        const relatedEntries = datafields.filter(df => df.$.tag === '550' && df['marcxml:subfield'].find(sf => sf.$.code === 'a'));
+                        const mainEntry = datafields.find(df => df['@_tag'] === '150');
+                        const seeAlso = datafields.filter(df => df['@_tag'] === '450');
+                        const relatedEntries = datafields.filter(df => df['@_tag'] === '550' && df['marcxml:subfield'].find(sf => sf['@_code'] === 'a'));
             
                         const doc = {
                             _id: href,
-                            mainEntry: mainEntry['marcxml:subfield'].find(sf => sf.$.code === 'a')._,
-                            seeAlso: seeAlso.map(sa => sa['marcxml:subfield'].find(sf => sf.$.code === 'a')._),
-                            relatedEntries: relatedEntries.map(re => re['marcxml:subfield'].find(sf => sf.$.code === 'a')._)
+                            mainEntry: mainEntry['marcxml:subfield'].find(sf => sf['@_code'] === 'a')._,
+                            seeAlso: seeAlso.map(sa => sa['marcxml:subfield'].find(sf => sf['@_code'] === 'a')._),
+                            relatedEntries: relatedEntries.map(re => re['marcxml:subfield'].find(sf => sf['@_code'] === 'a')._)
                         };
             
                         // Insert the document into MongoDB
