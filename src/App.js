@@ -279,7 +279,7 @@ function App() {
                     const data = await response.json();
             
                     // Extract the "next" URL from the API response
-                    nextPageUrl = data.next;
+                    nextPageUrl = data.next.replace(/^http:/, 'https:');;
             
                     const pageMadsXmlHrefs = data.orderedItems
                         .filter(item => {
