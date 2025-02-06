@@ -251,24 +251,51 @@ function App() {
               const response = await fetch(url);
               const data = await response.json();
               
-              const personalNameLabels = data.orderedItems
-              .filter(item => {
-                // Check if the item has object.type array containing "madsrdf:PersonalName"
-                return item.object?.type?.includes('madsrdf:PersonalName');
-              })
-              .map(item => {
-                try {
-                  const summary = item.summary;
-                  const originalLabel = summary.split("from '")[1].split("' to")[0];
-                  return originalLabel;
-                } catch (error) {
-                  console.error(`Error processing item: ${error}`);
-                  return null;
-                }
-              })
-              .filter(Boolean);
-        
-              setResults(personalNameLabels);
+              if (activityStream === 'label-updates') {
+                const personalNameLabels = data.orderedItems
+                .filter(item => {
+                    // Check if the item has object.type array containing "madsrdf:PersonalName"
+                    return item.object?.type?.includes('madsrdf:PersonalName');
+                })
+                .map(item => {
+                    try {
+                    const summary = item.summary;
+                    const originalLabel = summary.split("from '")[1].split("' to")[0];
+                    return originalLabel;
+                    } catch (error) {
+                    console.error(`Error processing item: ${error}`);
+                    return null;
+                    }
+                })
+                .filter(Boolean);
+            
+                setResults(personalNameLabels);
+              }
+              else if (activityStream === 'subject-updates') {
+                const madsXmlHrefs = data.orderedItems
+                .filter(item => {
+                  // Check if the item has type "Update" and object.type array containing "madsrdf:Topic", "madsrdf:SimpleType", "madsrdf:Authority"
+                  return (
+                    item.type === 'Update' &&
+                    item.object?.type?.includes('madsrdf:Topic') &&
+                    item.object?.type?.includes('madsrdf:SimpleType') &&
+                    item.object?.type?.includes('madsrdf:Authority')
+                  );
+                })
+                .map(item => {
+                  try {
+                    // Find the url object with mediaType "application/mads+xml"
+                    const madsXmlUrl = item.object.url.find(url => url.mediaType === 'application/mads+xml');
+                    return madsXmlUrl?.href;
+                  } catch (error) {
+                    console.error(`Error processing item: ${error}`);
+                    return null;
+                  }
+                })
+                .filter(Boolean);
+            
+              console.log(madsXmlHrefs);
+              }
             } catch (error) {
               setError('Error fetching or processing data. Please try again.');
               console.error(`Error: ${error}`);
