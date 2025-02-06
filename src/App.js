@@ -357,9 +357,14 @@ function App() {
                             relatedEntries: relatedEntries.map(re => re['marcxml:subfield']?.find(sf => sf['@_code'] === 'a')?._ || null).filter(Boolean)
                         };
                 
-                        // Insert the document into MongoDB
-                        const db = await connectToDatabase();
-                        await db.collection('mads_entries').insertOne(doc);
+                        // Send the document to the API route
+                        await fetch('/api/saveMadsEntry', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(doc),
+                        });
                 
                         console.log(`Inserted document for href: ${href}`);
                     } catch (error) {
