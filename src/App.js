@@ -21,6 +21,15 @@ function App() {
     const [number, setNumber] = useState('');
     const [results, setResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    //Drop down menu
+    const [activityStream, setActivityStream] = useState('label-updates'); // Default to label-updates
+
+    const activityStreamOptions = [
+        { value: 'label-updates', label: 'Label Updates' },
+        { value: 'subject-updates', label: 'Subject Updates' },
+        { value: 'subject-adds', label: 'Subject Additions' },
+        { value: 'subject-removals', label: 'Subject Removals/Deprecated' },
+      ];
 
     const handleAnalyze = async () => {
         setLoading(true);
@@ -236,7 +245,7 @@ function App() {
             setError('');
             setResults([]);
             
-            const url = `https://id.loc.gov/authorities/names/activitystreams/label-updates/${number}`;
+            const url = `https://id.loc.gov/authorities/names/activitystreams/${activityStream}/${number}`;
         
             try {
               const response = await fetch(url);
@@ -475,54 +484,72 @@ function App() {
                     )}
 
                 {mode === 'authorities' && (
-                                    <div className="space-y-6">
-                                        <div className="flex gap-4">
-                                            <input
-                                                type="number"
-                                                value={number}
-                                                onChange={(e) => setNumber(e.target.value)}
-                                                placeholder="Enter number"
-                                                min="1" // Set minimum value to 1
-                                                className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            />
-                                            <button
-                                                onClick={handleFindLabels}
-                                                disabled={isLoading || !number}
-                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                                            >
-                                                {isLoading ? 'Processing...' : 'Find Label Changes'}
-                                            </button>
-                                            {results.length > 0 && (
-                                                <button
-                                                onClick={handleDownload}
-                                                variant="outline"
-                                                className="flex gap-2"
-                                                >
-                                                <Download size={16} />
-                                                Download Results
-                                                </button>
-                                            )}
-                                            </div>
+                <div className="space-y-6">
+                    <div className="space-y-4">
+                    <label className="block text-sm font-medium text-gray-700">
+                        Select Activity Stream:
+                    </label>
+                    <select
+                        value={activityStream}
+                        onChange={(e) => setActivityStream(e.target.value)}
+                        className="w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                        {activityStreamOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                            {option.label}
+                        </option>
+                        ))}
+                    </select>
+                    </div>
 
-                                            {error && (
-                                            <div className="text-red-500 mb-4">{error}</div>
-                                            )}
+                    <div className="flex gap-4">
+                    <input
+                        type="number"
+                        value={number}
+                        onChange={(e) => setNumber(e.target.value)}
+                        placeholder="Enter number"
+                        min="1"
+                        className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                        onClick={handleFindLabels}
+                        disabled={isLoading || !number}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        {isLoading ? 'Processing...' : 'Find Label Changes'}
+                    </button>
+                    {results.length > 0 && (
+                        <button
+                        onClick={handleDownload}
+                        variant="outline"
+                        className="flex gap-2"
+                        >
+                        <Download size={16} />
+                        Download Results
+                        </button>
+                    )}
+                    </div>
 
-                                        {results.length > 0 && (
+                    {error && (
+                    <div className="text-red-500 mb-4">{error}</div>
+                    )}
 
-                                            <div className="mt-4">
-                                                <h3 className="text-lg font-semibold mb-2"> Found Personal Name Labels ({results.length}):</h3>
-                                                <div className="max-h-96 overflow-y-auto border rounded-md p-4">
-                                                    {results.map((label, index) => (
-                                                        <div key={index} className="mb-2">
-                                                            {label}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                    {results.length > 0 && (
+                    <div className="mt-4">
+                        <h3 className="text-lg font-semibold mb-2">
+                        Found Personal Name Labels ({results.length}):
+                        </h3>
+                        <div className="max-h-96 overflow-y-auto border rounded-md p-4">
+                        {results.map((label, index) => (
+                            <div key={index} className="mb-2">
+                            {label}
+                            </div>
+                        ))}
+                        </div>
+                    </div>
+                    )}
+                </div>
+                )}
 
                     {mode !== 'csv' && mode !== 'authorities' && (
                         <div className="space-y-6">
