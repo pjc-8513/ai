@@ -245,13 +245,15 @@ function App() {
             setError('');
             setResults([]);
             
-            const url = `https://id.loc.gov/authorities/names/activitystreams/${activityStream}/${number}`;
+            //const url = `https://id.loc.gov/authorities/names/activitystreams/${activityStream}/${number}`;
         
             try {
-              const response = await fetch(url);
-              const data = await response.json();
               
               if (activityStream === 'label-updates') {
+                const url = `https://id.loc.gov/authorities/names/activitystreams/${activityStream}/${number}`;
+                const response = await fetch(url);
+                const data = await response.json();
+
                 const personalNameLabels = data.orderedItems
                 .filter(item => {
                     // Check if the item has object.type array containing "madsrdf:PersonalName"
@@ -272,6 +274,10 @@ function App() {
                 setResults(personalNameLabels);
               }
               else if (activityStream === 'subject-updates') {
+                const url = `https://id.loc.gov/authorities/subjects/activitystreams/feed/${number}`;
+                const response = await fetch(url);
+                const data = await response.json();
+
                 const madsXmlHrefs = data.orderedItems
                 .filter(item => {
                   // Check if the item has type "Update" and object.type array containing "madsrdf:Topic", "madsrdf:SimpleType", "madsrdf:Authority"
