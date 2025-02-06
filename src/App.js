@@ -332,29 +332,38 @@ function App() {
                         // Log the parsed data for debugging
                         console.log('Parsed Data:', parsedData);
                 
-                        // Safely extract the marcxml:record and marcxml:datafield
-                        const marcRecord = parsedData?.['marcxml:record'];
-                        if (!marcRecord) {
-                            console.error(`No 'marcxml:record' found in href: ${href}`);
+                        // Safely extract the mads:mads structure
+                        const madsMads = parsedData?.['mads:mads'];
+                        if (!madsMads) {
+                            console.error(`No 'mads:mads' found in href: ${href}`);
                             continue; // Skip this href and move to the next one
                         }
                 
-                        const datafields = marcRecord?.['marcxml:datafield'];
-                        if (!Array.isArray(datafields)) {
-                            console.error(`No valid 'marcxml:datafield' array found in href: ${href}`);
-                            continue; // Skip this href and move to the next one
+                        // Extract main entry
+                        const mainEntry = madsMads?.['mads:authority']?.['mads:topic'];
+                
+                        // Extract seeAlso entries from mads:note (if available)
+                        const seeAlso = Array.isArray(madsMads?.['mads:note'])
+                            ? madsMads['mads:note'].map(note => note).filter(Boolean)
+                            : [];
+                
+                        // Extract related entries from mads:related (if available)
+                        const relatedEntries = [];
+                        if (madsMads?.['mads:related']) {
+                            if (madsMads['mads:related']['mads:topic']) {
+                                relatedEntries.push(madsMads['mads:related']['mads:topic']);
+                            }
+                            if (madsMads['mads:related']['mads:geographic']) {
+                                relatedEntries.push(madsMads['mads:related']['mads:geographic']);
+                            }
                         }
                 
-                        // Safely extract mainEntry, seeAlso, and relatedEntries
-                        const mainEntry = datafields.find(df => df['@_tag'] === '150');
-                        const seeAlso = datafields.filter(df => df['@_tag'] === '450');
-                        const relatedEntries = datafields.filter(df => df['@_tag'] === '550' && df['marcxml:subfield']?.find(sf => sf['@_code'] === 'a'));
-                
+                        // Construct the document
                         const doc = {
                             _id: href,
-                            mainEntry: mainEntry?.['marcxml:subfield']?.find(sf => sf['@_code'] === 'a')?._ || null,
-                            seeAlso: seeAlso.map(sa => sa['marcxml:subfield']?.find(sf => sf['@_code'] === 'a')?._ || null).filter(Boolean),
-                            relatedEntries: relatedEntries.map(re => re['marcxml:subfield']?.find(sf => sf['@_code'] === 'a')?._ || null).filter(Boolean)
+                            mainEntry: mainEntry || null,
+                            seeAlso: seeAlso.filter(Boolean),
+                            relatedEntries: relatedEntries.filter(Boolean)
                         };
                 
                         // Send the document to the API route
