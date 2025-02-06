@@ -314,9 +314,12 @@ function App() {
 
                 console.log(madsXmlHrefs.slice(0, maxItems)); // Trim to 25 items
 
+                // Convert all URLs to HTTPS to avoid Mixed Content errors
+                const httpsMadsXmlHrefs = madsXmlHrefs.map(href => href.replace(/^http:/, 'https:'));
+
                 // Process each madsXmlHrefs using a for...of loop to handle async/await properly
                 const processedData = [];
-                for (const href of madsXmlHrefs.slice(0, maxItems)) {
+                for (const href of httpsMadsXmlHrefs.slice(0, maxItems)) {
                     try {
                         const response = await fetch(href);
                         const data = await response.text(); // or response.json() if it's JSON
