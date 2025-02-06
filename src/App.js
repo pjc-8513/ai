@@ -239,88 +239,115 @@ function App() {
         setImage(null);
     };
 
-        // Add this function for handling label search
-        const handleFindLabels = async () => {
-            setIsLoading(true);
-            setError('');
-            setResults([]);
-            
-            //const url = `https://id.loc.gov/authorities/names/activitystreams/${activityStream}/${number}`;
-        
-            try {
-              
-              if (activityStream === 'label-updates') {
+    // Add this function for handling label search
+    const handleFindLabels = async () => {
+        setIsLoading(true);
+        setError('');
+        setResults([]);
+
+        try {
+            if (activityStream === 'label-updates') {
                 const url = `https://id.loc.gov/authorities/names/activitystreams/${activityStream}/${number}`;
                 const response = await fetch(url);
                 const data = await response.json();
 
                 const personalNameLabels = data.orderedItems
-                .filter(item => {
-                    // Check if the item has object.type array containing "madsrdf:PersonalName"
-                    return item.object?.type?.includes('madsrdf:PersonalName');
-                })
-                .map(item => {
-                    try {
-                    const summary = item.summary;
-                    const originalLabel = summary.split("from '")[1].split("' to")[0];
-                    return originalLabel;
-                    } catch (error) {
-                    console.error(`Error processing item: ${error}`);
-                    return null;
-                    }
-                })
-                .filter(Boolean);
-            
+                    .filter(item => {
+                        // Check if the item has object.type array containing "madsrdf:PersonalName"
+                        return item.object?.type?.includes('madsrdf:PersonalName');
+                    })
+                    .map(item => {
+                        try {
+                            const summary = item.summary;
+                            const originalLabel = summary.split("from '")[1].split("' to")[0];
+                            return originalLabel;
+                        } catch (error) {
+                            console.error(`Error processing item: ${error}`);
+                            return null;
+                        }
+                    })
+                    .filter(Boolean);
+
                 setResults(personalNameLabels);
-              }
-              else if (activityStream === 'subject-updates') {
-                const url = `https://id.loc.gov/authorities/subjects/activitystreams/feed/${number}`;
-                const response = await fetch(url);
-                const data = await response.json();
+            } else if (activityStream === 'subject-updates') {
+                let madsXmlHrefs = [];
+                const maxItems = 25;
+                let currentPage = number;
 
-                const madsXmlHrefs = data.orderedItems
-                .filter(item => {
-                  // Check if the item has type "Update" and object.type array containing "madsrdf:Topic", "madsrdf:SimpleType", "madsrdf:Authority"
-                  return (
-                    item.type === 'Update' &&
-                    item.object?.type?.includes('madsrdf:Topic') &&
-                    item.object?.type?.includes('madsrdf:SimpleType') &&
-                    item.object?.type?.includes('madsrdf:Authority')
-                  );
-                })
-                .map(item => {
-                  try {
-                    // Find the url object with mediaType "application/mads+xml"
-                    const madsXmlUrl = item.object.url.find(url => url.mediaType === 'application/mads+xml');
-                    return madsXmlUrl?.href;
-                  } catch (error) {
-                    console.error(`Error processing item: ${error}`);
-                    return null;
-                  }
-                })
-                .filter(Boolean);
-            
-              console.log(madsXmlHrefs);
-              }
-            } catch (error) {
-              setError('Error fetching or processing data. Please try again.');
-              console.error(`Error: ${error}`);
-            } finally {
-              setIsLoading(false);
+                while (madsXmlHrefs.length < maxItems) {
+                    const url = `https://id.loc.gov/authorities/subjects/activitystreams/feed/${currentPage}`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    const pageMadsXmlHrefs = data.orderedItems
+                        .filter(item => {
+                            // Check if the item has type "Update" and object.type array containing "madsrdf:Topic", "madsrdf:SimpleType", "madsrdf:Authority"
+                            return (
+                                item.type === 'Update' &&
+                                item.object?.type?.includes('madsrdf:Topic') &&
+                                item.object?.type?.includes('madsrdf:SimpleType') &&
+                                item.object?.type?.includes('madsrdf:Authority')
+                            );
+                        })
+                        .map(item => {
+                            try {
+                                // Find the url object with mediaType "application/mads+xml"
+                                const madsXmlUrl = item.object.url.find(url => url.mediaType === 'application/mads+xml');
+                                return madsXmlUrl?.href;
+                            } catch (error) {
+                                console.error(`Error processing item: ${error}`);
+                                return null;
+                            }
+                        })
+                        .filter(Boolean);
+
+                    madsXmlHrefs = madsXmlHrefs.concat(pageMadsXmlHrefs);
+
+                    // Stop if no more items are found
+                    if (pageMadsXmlHrefs.length === 0) {
+                        break;
+                    }
+
+                    // Move to the next page
+                    currentPage++;
+                }
+
+                console.log(madsXmlHrefs.slice(0, maxItems)); // Trim to 25 items
+
+                // Process each madsXmlHrefs using a for...of loop to handle async/await properly
+                const processedData = [];
+                for (const href of madsXmlHrefs.slice(0, maxItems)) {
+                    try {
+                        const response = await fetch(href);
+                        const data = await response.text(); // or response.json() if it's JSON
+                        processedData.push(data);
+                        console.log(data);
+                    } catch (error) {
+                        console.error(`Error fetching MADS XML: ${error}`);
+                    }
+                }
+
+                setResults(processedData); // Update results with processed data
             }
-          };
+        } catch (error) {
+            setError('Error fetching or processing data. Please try again.');
+            console.error(`Error: ${error}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-          const handleDownload = () => {
-            const blob = new Blob([results.join('\n')], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'personal_name_labels.txt';
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-          };
+    const handleDownload = () => {
+        const blob = new Blob([results.join('\n')], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'personal_name_labels.txt';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    };
 
         return (
             <div className="min-h-screen bg-gray-50 py-8 px-4">
