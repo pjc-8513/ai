@@ -279,7 +279,7 @@ function App() {
                     const data = await response.json();
             
                     // Extract the "next" URL from the API response
-                    nextPageUrl = data.next.replace(/^http:/, 'https:');;
+                    nextPageUrl = data.next;
             
                     const pageMadsXmlHrefs = data.orderedItems
                         .filter(item => {
@@ -316,20 +316,49 @@ function App() {
                 // Convert all URLs to HTTPS to avoid Mixed Content errors
                 const httpsMadsXmlHrefs = madsXmlHrefs.map(href => href.replace(/^http:/, 'https:'));
             
-                // Process each madsXmlHrefs using a for...of loop to handle async/await properly
-                const processedData = [];
+                // Process each MADS XML file and insert into MongoDB
+                const parseString = require('xml2js').parseString;
+            
                 for (const href of httpsMadsXmlHrefs.slice(0, maxItems)) {
                     try {
                         const response = await fetch(href);
-                        const data = await response.text(); // or response.json() if it's JSON
-                        processedData.push(data);
-                        console.log(data);
+                        const xml = await response.text();
+            
+                        // Parse the XML content
+                        const parsedData = await new Promise((resolve, reject) => {
+                            parseString(xml, (err, result) => {
+                                if (err) {
+                                    reject(err);
+                                } else {
+                                    resolve(result);
+                                }
+                            });
+                        });
+            
+                        // Extract relevant fields from the parsed XML
+                        const marcRecord = parsedData['marcxml:record'];
+                        const datafields = marcRecord['marcxml:datafield'];
+            
+                        const mainEntry = datafields.find(df => df.$.tag === '150');
+                        const seeAlso = datafields.filter(df => df.$.tag === '450');
+                        const relatedEntries = datafields.filter(df => df.$.tag === '550' && df['marcxml:subfield'].find(sf => sf.$.code === 'a'));
+            
+                        const doc = {
+                            _id: href,
+                            mainEntry: mainEntry['marcxml:subfield'].find(sf => sf.$.code === 'a')._,
+                            seeAlso: seeAlso.map(sa => sa['marcxml:subfield'].find(sf => sf.$.code === 'a')._),
+                            relatedEntries: relatedEntries.map(re => re['marcxml:subfield'].find(sf => sf.$.code === 'a')._)
+                        };
+            
+                        // Insert the document into MongoDB
+                        await db.collection('mads_entries').insertOne(doc);
+                        console.log(`Inserted document for href: ${href}`);
                     } catch (error) {
-                        console.error(`Error fetching MADS XML: ${error}`);
+                        console.error(`Error processing MADS XML for href: ${href}`, error);
                     }
                 }
             
-                setResults(processedData); // Update results with processed data
+                setResults(httpsMadsXmlHrefs.slice(0, maxItems)); // Update results with processed hrefs
             }
         } catch (error) {
             setError('Error fetching or processing data. Please try again.');
