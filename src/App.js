@@ -329,29 +329,37 @@ function App() {
                         const parser = new XMLParser();
                         const parsedData = parser.parse(xml);
                 
-                        // Extract relevant fields from the parsed XML
-                        const marcRecord = parsedData['marcxml:record'];
-                        const datafields = marcRecord['marcxml:datafield'];
+                        // Log the parsed data for debugging
+                        console.log('Parsed Data:', parsedData);
                 
+                        // Safely extract the marcxml:record and marcxml:datafield
+                        const marcRecord = parsedData?.['marcxml:record'];
+                        if (!marcRecord) {
+                            console.error(`No 'marcxml:record' found in href: ${href}`);
+                            continue; // Skip this href and move to the next one
+                        }
+                
+                        const datafields = marcRecord?.['marcxml:datafield'];
+                        if (!Array.isArray(datafields)) {
+                            console.error(`No valid 'marcxml:datafield' array found in href: ${href}`);
+                            continue; // Skip this href and move to the next one
+                        }
+                
+                        // Safely extract mainEntry, seeAlso, and relatedEntries
                         const mainEntry = datafields.find(df => df['@_tag'] === '150');
                         const seeAlso = datafields.filter(df => df['@_tag'] === '450');
-                        const relatedEntries = datafields.filter(df => df['@_tag'] === '550' && df['marcxml:subfield'].find(sf => sf['@_code'] === 'a'));
+                        const relatedEntries = datafields.filter(df => df['@_tag'] === '550' && df['marcxml:subfield']?.find(sf => sf['@_code'] === 'a'));
                 
                         const doc = {
-                            href,
-                            mainEntry: mainEntry['marcxml:subfield'].find(sf => sf['@_code'] === 'a')._,
-                            seeAlso: seeAlso.map(sa => sa['marcxml:subfield'].find(sf => sf['@_code'] === 'a')._),
-                            relatedEntries: relatedEntries.map(re => re['marcxml:subfield'].find(sf => sf['@_code'] === 'a')._)
+                            _id: href,
+                            mainEntry: mainEntry?.['marcxml:subfield']?.find(sf => sf['@_code'] === 'a')?._ || null,
+                            seeAlso: seeAlso.map(sa => sa['marcxml:subfield']?.find(sf => sf['@_code'] === 'a')?._ || null).filter(Boolean),
+                            relatedEntries: relatedEntries.map(re => re['marcxml:subfield']?.find(sf => sf['@_code'] === 'a')?._ || null).filter(Boolean)
                         };
                 
-                        // Send the document to the API route
-                        await fetch('/api/saveMadsEntry', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(doc),
-                        });
+                        // Insert the document into MongoDB
+                        const db = await connectToDatabase();
+                        await db.collection('mads_entries').insertOne(doc);
                 
                         console.log(`Inserted document for href: ${href}`);
                     } catch (error) {
