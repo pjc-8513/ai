@@ -14,7 +14,7 @@ export default async function handler(req, res) {
             const collection = db.collection('mads_entries');
 
             // Check if a document with the given _id exists
-            const existingEntry = await collection.findOne({ _id });
+            const existingEntry = await collection.findOne({ _id });  // Direct string comparison
 
             await client.close();
 

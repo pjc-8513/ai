@@ -240,22 +240,23 @@ function App() {
         setImage(null);
     };
 
-        // *** Function to check if a document exists in MongoDB ***
+    // *** Function to check if a document exists in MongoDB ***
     async function checkIfExistsInMongoDB(href) {
         try {
-            const response = await fetch('/api/checkMadsEntry', { // Create this API endpoint
+            const response = await fetch('/api/checkMadsEntry', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ _id: href }), // Send the _id (href) to the API
+                body: JSON.stringify({ _id: href }),
             });
-
+    
             const data = await response.json();
-            return data.exists; // The API should return { exists: true/false }
+            return data.exists;
+    
         } catch (error) {
             console.error("Error checking MongoDB:", error);
-            return true; // Assume it exists to prevent adding it again (handle errors as you see fit)
+            return true; // Handle errors as you see fit
         }
     }
 
@@ -323,7 +324,7 @@ function App() {
                     // *** MongoDB Check ***
                     const newHrefs = [];
                     for (const href of pageMadsXmlHrefs) {
-                        const exists = await checkIfExistsInMongoDB(href); // Implement this function (see below)
+                        const exists = await checkIfExistsInMongoDB(href);
                         if (!exists) {
                             newHrefs.push(href);
                         }
