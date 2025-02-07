@@ -240,6 +240,25 @@ function App() {
         setImage(null);
     };
 
+        // *** Function to check if a document exists in MongoDB ***
+    async function checkIfExistsInMongoDB(href) {
+        try {
+            const response = await fetch('/api/checkMadsEntry', { // Create this API endpoint
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ _id: href }), // Send the _id (href) to the API
+            });
+
+            const data = await response.json();
+            return data.exists; // The API should return { exists: true/false }
+        } catch (error) {
+            console.error("Error checking MongoDB:", error);
+            return true; // Assume it exists to prevent adding it again (handle errors as you see fit)
+        }
+    }
+
     // Add this function for handling label search
     const handleFindLabels = async () => {
         setIsLoading(true);
@@ -279,12 +298,10 @@ function App() {
                     const response = await fetch(nextPageUrl);
                     const data = await response.json();
             
-                    // Extract the "next" URL from the API response
-                    nextPageUrl = data.next.replace(/^http:/, 'https:');
+                    nextPageUrl = data.next?.replace(/^http:/, 'https:'); // Optional chaining for data.next
             
                     const pageMadsXmlHrefs = data.orderedItems
                         .filter(item => {
-                            // Check if the item has type "Update" and object.type array containing "madsrdf:Topic", "madsrdf:SimpleType", "madsrdf:Authority"
                             return (
                                 item.type === 'Update' &&
                                 item.object?.type?.includes('madsrdf:Topic') &&
@@ -294,8 +311,7 @@ function App() {
                         })
                         .map(item => {
                             try {
-                                // Find the url object with mediaType "application/mads+xml"
-                                const madsXmlUrl = item.object.url.find(url => url.mediaType === 'application/mads+xml');
+                                const madsXmlUrl = item.object.url?.find(url => url.mediaType === 'application/mads+xml'); // Optional chaining
                                 return madsXmlUrl?.href;
                             } catch (error) {
                                 console.error(`Error processing item: ${error}`);
@@ -303,6 +319,15 @@ function App() {
                             }
                         })
                         .filter(Boolean);
+            
+                    // *** MongoDB Check ***
+                    const newHrefs = [];
+                    for (const href of pageMadsXmlHrefs) {
+                        const exists = await checkIfExistsInMongoDB(href); // Implement this function (see below)
+                        if (!exists) {
+                            newHrefs.push(href);
+                        }
+                    }
             
                     madsXmlHrefs = madsXmlHrefs.concat(pageMadsXmlHrefs);
             
