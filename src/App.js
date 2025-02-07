@@ -344,7 +344,8 @@ function App() {
             
                 // Use fast-xml-parser for XML parsing
                 const { XMLParser } = require('fast-xml-parser');
-            
+                const mainEntries = []; // Array to store all main entries
+
                 for (const href of httpsMadsXmlHrefs.slice(0, maxItems)) {
                     try {
                         const response = await fetch(href);
@@ -366,6 +367,7 @@ function App() {
                 
                         // Extract main entry
                         const mainEntry = madsMads?.['mads:authority']?.['mads:topic'];
+                        mainEntries.push(mainEntry); // Add the mainEntry to the array
                 
                         const madsVariants = Array.isArray(madsMads?.['mads:variant'])
                         ? madsMads['mads:variant']
@@ -409,7 +411,8 @@ function App() {
                     }
                 }
             
-                setResults(httpsMadsXmlHrefs.slice(0, maxItems)); // Update results with processed hrefs
+                //setResults(httpsMadsXmlHrefs.slice(0, maxItems)); // Update results with processed hrefs
+                setResults(mainEntries);
             }
         } catch (error) {
             setError('Error fetching or processing data. Please try again.');
