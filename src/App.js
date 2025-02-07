@@ -342,10 +342,13 @@ function App() {
                         // Extract main entry
                         const mainEntry = madsMads?.['mads:authority']?.['mads:topic'];
                 
-                        // Extract seeAlso entries from mads:note (if available)
-                        const seeAlso = Array.isArray(madsMads?.['mads:note'])
-                            ? madsMads['mads:note'].map(note => note).filter(Boolean)
-                            : [];
+                        const madsVariants = Array.isArray(madsMads?.['mads:variant'])
+                        ? madsMads['mads:variant']
+                        : madsMads?.['mads:variant'] ? [madsMads['mads:variant']] : []; // Handle single variant case
+                    
+                    const seeAlso = madsVariants
+                        .map(variant => variant['mads:topic'])
+                        .filter(Boolean);
                 
                         // Extract related entries from mads:related (if available)
                         const relatedEntries = [];
