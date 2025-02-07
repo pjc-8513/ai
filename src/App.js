@@ -293,13 +293,14 @@ function App() {
             } else if (activityStream === 'subject-updates') {
                 let madsXmlHrefs = [];
                 const maxItems = 25;
+                const batchSize = 10; // Process documents in batches of 10
                 let nextPageUrl = `https://id.loc.gov/authorities/subjects/activitystreams/feed/${number}`;
             
                 while (madsXmlHrefs.length < maxItems && nextPageUrl) {
                     const response = await fetch(nextPageUrl);
                     const data = await response.json();
             
-                    nextPageUrl = data.next?.replace(/^http:/, 'https:'); // Optional chaining for data.next
+                    nextPageUrl = data.next?.replace(/^http:/, 'https:');
             
                     const pageMadsXmlHrefs = data.orderedItems
                         .filter(item => {
@@ -312,7 +313,7 @@ function App() {
                         })
                         .map(item => {
                             try {
-                                const madsXmlUrl = item.object.url?.find(url => url.mediaType === 'application/mads+xml'); // Optional chaining
+                                const madsXmlUrl = item.object.url?.find(url => url.mediaType === 'application/mads+xml');
                                 return madsXmlUrl?.href;
                             } catch (error) {
                                 console.error(`Error processing item: ${error}`);
@@ -332,53 +333,45 @@ function App() {
             
                     madsXmlHrefs = madsXmlHrefs.concat(pageMadsXmlHrefs);
             
-                    // Stop if we've reached the desired number of items
                     if (madsXmlHrefs.length >= maxItems) {
                         break;
                     }
                 }
             
-                console.log(madsXmlHrefs.slice(0, maxItems)); // Trim to 25 items
+                console.log(madsXmlHrefs.slice(0, maxItems));
             
-                // Convert all URLs to HTTPS to avoid Mixed Content errors
                 const httpsMadsXmlHrefs = madsXmlHrefs.map(href => href.replace(/^http:/, 'https:'));
-            
-                // Use fast-xml-parser for XML parsing
                 const { XMLParser } = require('fast-xml-parser');
-                const mainEntries = []; // Array to store all main entries
-
+                const mainEntries = [];
+                const batchedDocs = [];
+            
                 for (const href of httpsMadsXmlHrefs.slice(0, maxItems)) {
                     try {
                         const response = await fetch(href);
                         const xml = await response.text();
-                
-                        // Parse the XML content using fast-xml-parser
+            
                         const parser = new XMLParser();
                         const parsedData = parser.parse(xml);
-                
-                        // Log the parsed data for debugging
+            
                         console.log('Parsed Data:', parsedData);
-                
-                        // Safely extract the mads:mads structure
+            
                         const madsMads = parsedData?.['mads:mads'];
                         if (!madsMads) {
                             console.error(`No 'mads:mads' found in href: ${href}`);
-                            continue; // Skip this href and move to the next one
+                            continue;
                         }
-                
-                        // Extract main entry
+            
                         const mainEntry = madsMads?.['mads:authority']?.['mads:topic'];
-                        mainEntries.push(mainEntry); // Add the mainEntry to the array
-                
+                        mainEntries.push(mainEntry);
+            
                         const madsVariants = Array.isArray(madsMads?.['mads:variant'])
-                        ? madsMads['mads:variant']
-                        : madsMads?.['mads:variant'] ? [madsMads['mads:variant']] : []; // Handle single variant case
-                    
-                    const seeAlso = madsVariants
-                        .map(variant => variant['mads:topic'])
-                        .filter(Boolean);
-                
-                        // Extract related entries from mads:related (if available)
+                            ? madsMads['mads:variant']
+                            : madsMads?.['mads:variant'] ? [madsMads['mads:variant']] : [];
+            
+                        const seeAlso = madsVariants
+                            .map(variant => variant['mads:topic'])
+                            .filter(Boolean);
+            
                         const relatedEntries = [];
                         if (madsMads?.['mads:related']) {
                             if (madsMads['mads:related']['mads:topic']) {
@@ -388,31 +381,34 @@ function App() {
                                 relatedEntries.push(madsMads['mads:related']['mads:geographic']);
                             }
                         }
-                
-                        // Construct the document
+            
                         const doc = {
                             _id: href,
                             mainEntry: mainEntry || null,
                             seeAlso: seeAlso.filter(Boolean),
                             relatedEntries: relatedEntries.filter(Boolean)
                         };
-                
-                        // Send the document to the API route
-                        await fetch('/api/saveMadsEntry', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(doc),
-                        });
-                
-                        console.log(`Inserted document for href: ${href}`);
+            
+                        batchedDocs.push(doc);
+            
+                        // When we reach the batch size or the last item, send the batch
+                        if (batchedDocs.length === batchSize || href === httpsMadsXmlHrefs[httpsMadsXmlHrefs.length - 1]) {
+                            await fetch('/api/saveMadsEntries', {  // Note: Changed to plural endpoint
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ docs: batchedDocs }),
+                            });
+            
+                            console.log(`Inserted batch of ${batchedDocs.length} documents`);
+                            batchedDocs.length = 0; // Clear the batch array
+                        }
                     } catch (error) {
                         console.error(`Error processing MADS XML for href: ${href}`, error);
                     }
                 }
             
-                //setResults(httpsMadsXmlHrefs.slice(0, maxItems)); // Update results with processed hrefs
                 setResults(mainEntries);
             }
         } catch (error) {
