@@ -1,5 +1,7 @@
 // pages/api/saveMadsEntries.js
-import { connectToDatabase } from '../../utils/mongodb';
+import { MongoClient } from 'mongodb';
+
+const MONGODB_URI = process.env.MONGODB_URI;
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -7,12 +9,17 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { db } = await connectToDatabase();
         const { docs } = req.body;
 
         if (!Array.isArray(docs)) {
             return res.status(400).json({ message: 'Invalid request body' });
         }
+
+        const client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        
+        const db = client.db('Cluster0');
+        const collection = db.collection('mads_entries');
 
         // Use bulkWrite for efficient batch processing
         const operations = docs.map(doc => ({
@@ -23,9 +30,18 @@ export default async function handler(req, res) {
             }
         }));
 
-        const result = await db.collection('mads_entries').bulkWrite(operations);
+        const result = await collection.bulkWrite(operations);
 
-        res.status(200).json({ message: 'Documents processed successfully', result });
+        await client.close();
+
+        res.status(200).json({ 
+            message: 'Documents processed successfully', 
+            result: {
+                matchedCount: result.matchedCount,
+                modifiedCount: result.modifiedCount,
+                upsertedCount: result.upsertedCount
+            }
+        });
     } catch (error) {
         console.error('Error processing documents:', error);
         res.status(500).json({ message: 'Error processing documents' });
