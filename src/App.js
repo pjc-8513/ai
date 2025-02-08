@@ -23,7 +23,7 @@ function App() {
     const [isLoading, setIsLoading] = useState(false);
     //Drop down menu
     const [activityStream, setActivityStream] = useState('label-updates'); // Default to label-updates
-    const MONGODB_URI = process.env.MONGODB_URI;
+    
 
     const activityStreamOptions = [
         { value: 'label-updates', label: 'Label Updates' },
@@ -240,25 +240,24 @@ function App() {
         setImage(null);
     };
 
-    // *** Function to check if a document exists in MongoDB ***
-    async function checkIfExistsInMongoDB(href) {
-        try {
-            const response = await fetch('/api/checkMadsEntry', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ _id: href }),
-            });
-    
-            const data = await response.json();
-            return data.exists;
-    
-        } catch (error) {
-            console.error("Error checking MongoDB:", error);
-            return true; // Handle errors as you see fit
-        }
+// Batch check function
+async function checkExistingInMongoDB(hrefs) {
+    try {
+        const response = await fetch('/api/checkMadsEntries', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ids: hrefs }),
+        });
+
+        const data = await response.json();
+        return data.existingIds;
+    } catch (error) {
+        console.error("Error checking MongoDB:", error);
+        return new Set(hrefs); // On error, assume all exist to prevent duplicates
     }
+}
 
     // Add this function for handling label search
     const handleFindLabels = async () => {
@@ -293,7 +292,7 @@ function App() {
             } else if (activityStream === 'subject-updates') {
                 let madsXmlHrefs = [];
                 const maxItems = 25;
-                const batchSize = 10; // Process documents in batches of 10
+                const batchSize = 10;
                 let nextPageUrl = `https://id.loc.gov/authorities/subjects/activitystreams/feed/${number}`;
             
                 while (madsXmlHrefs.length < maxItems && nextPageUrl) {
@@ -322,38 +321,32 @@ function App() {
                         })
                         .filter(Boolean);
             
-                    // *** MongoDB Check ***
-                    const newHrefs = [];
-                    for (const href of pageMadsXmlHrefs) {
-                        const exists = await checkIfExistsInMongoDB(href);
-                        if (!exists) {
-                            newHrefs.push(href);
-                        }
-                    }
-            
                     madsXmlHrefs = madsXmlHrefs.concat(pageMadsXmlHrefs);
             
                     if (madsXmlHrefs.length >= maxItems) {
+                        madsXmlHrefs = madsXmlHrefs.slice(0, maxItems);
                         break;
                     }
                 }
             
-                console.log(madsXmlHrefs.slice(0, maxItems));
+                // Batch check existence in MongoDB
+                const existingIds = await checkExistingInMongoDB(madsXmlHrefs);
+                const newHrefs = madsXmlHrefs.filter(href => !existingIds.has(href));
             
-                const httpsMadsXmlHrefs = madsXmlHrefs.map(href => href.replace(/^http:/, 'https:'));
+                console.log(`Found ${newHrefs.length} new entries to process`);
+            
+                const httpsMadsXmlHrefs = newHrefs.map(href => href.replace(/^http:/, 'https:'));
                 const { XMLParser } = require('fast-xml-parser');
                 const mainEntries = [];
                 const batchedDocs = [];
             
-                for (const href of httpsMadsXmlHrefs.slice(0, maxItems)) {
+                for (const href of httpsMadsXmlHrefs) {
                     try {
                         const response = await fetch(href);
                         const xml = await response.text();
             
                         const parser = new XMLParser();
                         const parsedData = parser.parse(xml);
-            
-                        console.log('Parsed Data:', parsedData);
             
                         const madsMads = parsedData?.['mads:mads'];
                         if (!madsMads) {
@@ -391,9 +384,8 @@ function App() {
             
                         batchedDocs.push(doc);
             
-                        // When we reach the batch size or the last item, send the batch
                         if (batchedDocs.length === batchSize || href === httpsMadsXmlHrefs[httpsMadsXmlHrefs.length - 1]) {
-                            await fetch('/api/saveMadsEntries', {  // Note: Changed to plural endpoint
+                            await fetch('/api/saveMadsEntries', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -402,7 +394,7 @@ function App() {
                             });
             
                             console.log(`Inserted batch of ${batchedDocs.length} documents`);
-                            batchedDocs.length = 0; // Clear the batch array
+                            batchedDocs.length = 0;
                         }
                     } catch (error) {
                         console.error(`Error processing MADS XML for href: ${href}`, error);

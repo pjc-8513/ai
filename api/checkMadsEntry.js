@@ -1,30 +1,39 @@
+// pages/api/checkMadsEntries.js
 import { MongoClient } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
 export default async function handler(req, res) {
-    if (req.method === 'POST') {
-        try {
-            const { _id } = req.body; // Get the _id (href) from the request body
+    if (req.method !== 'POST') {
+        return res.status(405).json({ message: 'Method not allowed' });
+    }
 
-            // Connect to MongoDB
-            const client = new MongoClient(MONGODB_URI);
-            await client.connect();
-            const db = client.db('Cluster0');
-            const collection = db.collection('mads_entries');
-
-            // Check if a document with the given _id exists
-            const existingEntry = await collection.findOne({ _id });  // Direct string comparison
-
-            await client.close();
-
-            res.status(200).json({ exists: !!existingEntry }); // Return { exists: true/false }
-
-        } catch (error) {
-            console.error("MongoDB check error:", error);
-            res.status(500).json({ exists: true }); // Error handling: Assume exists to prevent adding
+    try {
+        const { ids } = req.body;
+        
+        if (!Array.isArray(ids)) {
+            return res.status(400).json({ message: 'Invalid request body' });
         }
-    } else {
-        res.status(405).json({ message: 'Method not allowed' });
+
+        const client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        
+        const db = client.db('Cluster0');
+        const collection = db.collection('mads_entries');
+
+        // Use a single query to find all existing documents
+        const existingDocs = await collection.find({
+            _id: { $in: ids }
+        }, { projection: { _id: 1 } }).toArray();
+
+        await client.close();
+
+        // Convert to Set for efficient lookup
+        const existingIds = new Set(existingDocs.map(doc => doc._id));
+
+        res.status(200).json({ existingIds: existingIds });
+    } catch (error) {
+        console.error("MongoDB batch check error:", error);
+        res.status(500).json({ existingIds: new Set(ids) }); // On error, assume all exist
     }
 }
