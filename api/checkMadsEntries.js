@@ -28,12 +28,12 @@ export default async function handler(req, res) {
 
         await client.close();
 
-        // Convert to Set for efficient lookup
-        const existingIds = new Set(existingDocs.map(doc => doc._id));
+        // Return array of existing IDs
+        const existingIds = existingDocs.map(doc => doc._id);
 
-        res.status(200).json({ existingIds: existingIds });
+        res.status(200).json({ existingIds });
     } catch (error) {
         console.error("MongoDB batch check error:", error);
-        res.status(500).json({ existingIds: new Set(ids) }); // On error, assume all exist
+        res.status(500).json({ existingIds: ids }); // On error, assume all exist
     }
 }

@@ -255,7 +255,7 @@ async function checkExistingInMongoDB(hrefs) {
         return data.existingIds;
     } catch (error) {
         console.error("Error checking MongoDB:", error);
-        return new Set(hrefs); // On error, assume all exist to prevent duplicates
+        return hrefs; // On error, assume all exist to prevent duplicates
     }
 }
 
@@ -331,7 +331,7 @@ async function checkExistingInMongoDB(hrefs) {
             
                 // Batch check existence in MongoDB
                 const existingIds = await checkExistingInMongoDB(madsXmlHrefs);
-                const newHrefs = madsXmlHrefs.filter(href => !existingIds.has(href));
+                const newHrefs = madsXmlHrefs.filter(href => !existingIds.includes(href));
             
                 console.log(`Found ${newHrefs.length} new entries to process`);
             
