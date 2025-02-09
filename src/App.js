@@ -293,20 +293,26 @@ async function checkExistingInMongoDB(hrefs) {
                 let validHrefs = [];
                 const maxItems = 25;
                 const batchSize = 10;
-                let currentPage = number;  // Start from the provided feed number
+                
+                // Get the last successfully processed page from localStorage, or use the provided number
+                let currentPage = parseInt(localStorage.getItem('lastProcessedPage')) || number;
+                console.log(`Starting from page ${currentPage}`);
+                
                 let nextPageUrl = `https://id.loc.gov/authorities/subjects/activitystreams/feed/${currentPage}`;
-                let processedUrls = new Set();  // Keep track of URLs we've already seen
+                let processedUrls = new Set();
             
                 try {
-                    while (validHrefs.length < maxItems && nextPageUrl) {
+                    let pagesWithNoNewEntries = 0;  // Counter for consecutive pages with no new entries
+                    const MAX_EMPTY_PAGES = 5;  // Maximum number of consecutive empty pages before giving up
+                    
+                    while (validHrefs.length < maxItems && nextPageUrl && pagesWithNoNewEntries < MAX_EMPTY_PAGES) {
                         console.log(`Fetching page ${currentPage}...`);
                         const response = await fetch(nextPageUrl);
                         const data = await response.json();
             
                         // Update the next page URL and increment our counter
                         nextPageUrl = data.next?.replace(/^http:/, 'https:');
-                        currentPage++;
-            
+                        
                         // Filter and extract hrefs from current page
                         const pageMadsXmlHrefs = data.orderedItems
                             .filter(item => (
@@ -325,7 +331,7 @@ async function checkExistingInMongoDB(hrefs) {
                                 }
                             })
                             .filter(Boolean)
-                            .filter(href => !processedUrls.has(href));  // Filter out URLs we've already seen
+                            .filter(href => !processedUrls.has(href));
             
                         // Add these URLs to our processed set
                         pageMadsXmlHrefs.forEach(href => processedUrls.add(href));
@@ -334,21 +340,31 @@ async function checkExistingInMongoDB(hrefs) {
                         const existingIds = await checkExistingInMongoDB(pageMadsXmlHrefs);
                         const newHrefs = pageMadsXmlHrefs.filter(href => !existingIds.includes(href));
             
-                        // Add new hrefs to our valid list
-                        validHrefs = validHrefs.concat(newHrefs);
+                        if (newHrefs.length === 0) {
+                            pagesWithNoNewEntries++;
+                            console.log(`No new entries on page ${currentPage}. Empty pages: ${pagesWithNoNewEntries}`);
+                        } else {
+                            pagesWithNoNewEntries = 0;  // Reset counter when we find new entries
+                            // Add new hrefs to our valid list
+                            validHrefs = validHrefs.concat(newHrefs);
+                            console.log(`Found ${newHrefs.length} new entries from page ${currentPage}. Total valid: ${validHrefs.length}`);
+                        }
             
-                        console.log(`Found ${newHrefs.length} new entries from page ${currentPage - 1}. Total valid: ${validHrefs.length}`);
-            
-                        // If we don't have enough items and there's no next page, but we processed all items
+                        currentPage++;
+                        
+                        // If we don't have enough items and there's no next page
                         if (validHrefs.length < maxItems && !nextPageUrl) {
                             console.log(`Warning: Only found ${validHrefs.length} valid items out of requested ${maxItems}`);
                             break;
                         }
                     }
             
+                    // Store the last successfully processed page
+                    localStorage.setItem('lastProcessedPage', currentPage.toString());
+                    
                     // Ensure we don't exceed maxItems
                     validHrefs = validHrefs.slice(0, maxItems);
-                    console.log(`Processing ${validHrefs.length} total entries from ${currentPage - 1} pages`);
+                    console.log(`Processing ${validHrefs.length} total entries from pages ${number} to ${currentPage}`);
             
                     const httpsMadsXmlHrefs = validHrefs.map(href => href.replace(/^http:/, 'https:'));
                     const { XMLParser } = require('fast-xml-parser');
@@ -370,7 +386,7 @@ async function checkExistingInMongoDB(hrefs) {
                             }
             
                             const mainEntry = madsMads?.['mads:authority']?.['mads:topic'];
-                            if (mainEntry) {  // Only add if we have a valid main entry
+                            if (mainEntry) {
                                 mainEntries.push(mainEntry);
                             }
             
