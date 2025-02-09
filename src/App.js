@@ -289,119 +289,129 @@ async function checkExistingInMongoDB(hrefs) {
                     .filter(Boolean);
 
                 setResults(personalNameLabels);
-            } else if (activityStream === 'subject-updates') {
-                let madsXmlHrefs = [];
+            }else if (activityStream === 'subject-updates') {
+                let validHrefs = [];
                 const maxItems = 25;
                 const batchSize = 10;
                 let nextPageUrl = `https://id.loc.gov/authorities/subjects/activitystreams/feed/${number}`;
             
-                while (madsXmlHrefs.length < maxItems && nextPageUrl) {
-                    const response = await fetch(nextPageUrl);
-                    const data = await response.json();
+                try {
+                    while (validHrefs.length < maxItems && nextPageUrl) {
+                        const response = await fetch(nextPageUrl);
+                        const data = await response.json();
             
-                    nextPageUrl = data.next?.replace(/^http:/, 'https:');
+                        nextPageUrl = data.next?.replace(/^http:/, 'https:');
             
-                    const pageMadsXmlHrefs = data.orderedItems
-                        .filter(item => {
-                            return (
+                        // Filter and extract hrefs from current page
+                        const pageMadsXmlHrefs = data.orderedItems
+                            .filter(item => (
                                 item.type === 'Update' &&
                                 item.object?.type?.includes('madsrdf:Topic') &&
                                 item.object?.type?.includes('madsrdf:SimpleType') &&
                                 item.object?.type?.includes('madsrdf:Authority')
-                            );
-                        })
-                        .map(item => {
-                            try {
-                                const madsXmlUrl = item.object.url?.find(url => url.mediaType === 'application/mads+xml');
-                                return madsXmlUrl?.href;
-                            } catch (error) {
-                                console.error(`Error processing item: ${error}`);
-                                return null;
-                            }
-                        })
-                        .filter(Boolean);
-            
-                    madsXmlHrefs = madsXmlHrefs.concat(pageMadsXmlHrefs);
-            
-                    if (madsXmlHrefs.length >= maxItems) {
-                        madsXmlHrefs = madsXmlHrefs.slice(0, maxItems);
-                        break;
-                    }
-                }
-            
-                // Batch check existence in MongoDB
-                const existingIds = await checkExistingInMongoDB(madsXmlHrefs);
-                const newHrefs = madsXmlHrefs.filter(href => !existingIds.includes(href));
-            
-                console.log(`Found ${newHrefs.length} new entries to process`);
-            
-                const httpsMadsXmlHrefs = newHrefs.map(href => href.replace(/^http:/, 'https:'));
-                const { XMLParser } = require('fast-xml-parser');
-                const mainEntries = [];
-                const batchedDocs = [];
-            
-                for (const href of httpsMadsXmlHrefs) {
-                    try {
-                        const response = await fetch(href);
-                        const xml = await response.text();
-            
-                        const parser = new XMLParser();
-                        const parsedData = parser.parse(xml);
-            
-                        const madsMads = parsedData?.['mads:mads'];
-                        if (!madsMads) {
-                            console.error(`No 'mads:mads' found in href: ${href}`);
-                            continue;
-                        }
-            
-                        const mainEntry = madsMads?.['mads:authority']?.['mads:topic'];
-                        mainEntries.push(mainEntry);
-            
-                        const madsVariants = Array.isArray(madsMads?.['mads:variant'])
-                            ? madsMads['mads:variant']
-                            : madsMads?.['mads:variant'] ? [madsMads['mads:variant']] : [];
-            
-                        const seeAlso = madsVariants
-                            .map(variant => variant['mads:topic'])
+                            ))
+                            .map(item => {
+                                try {
+                                    const madsXmlUrl = item.object.url?.find(url => url.mediaType === 'application/mads+xml');
+                                    return madsXmlUrl?.href;
+                                } catch (error) {
+                                    console.error(`Error processing item: ${error}`);
+                                    return null;
+                                }
+                            })
                             .filter(Boolean);
             
-                        const relatedEntries = [];
-                        if (madsMads?.['mads:related']) {
-                            if (madsMads['mads:related']['mads:topic']) {
-                                relatedEntries.push(madsMads['mads:related']['mads:topic']);
-                            }
-                            if (madsMads['mads:related']['mads:geographic']) {
-                                relatedEntries.push(madsMads['mads:related']['mads:geographic']);
-                            }
+                        // Check which hrefs don't exist in MongoDB
+                        const existingIds = await checkExistingInMongoDB(pageMadsXmlHrefs);
+                        const newHrefs = pageMadsXmlHrefs.filter(href => !existingIds.includes(href));
+            
+                        // Add new hrefs to our valid list
+                        validHrefs = validHrefs.concat(newHrefs);
+            
+                        console.log(`Found ${newHrefs.length} new entries from current page. Total valid: ${validHrefs.length}`);
+            
+                        // If we don't have enough items and there's no next page, but we processed all items
+                        if (validHrefs.length < maxItems && !nextPageUrl) {
+                            console.log(`Warning: Only found ${validHrefs.length} valid items out of requested ${maxItems}`);
+                            break;
                         }
-            
-                        const doc = {
-                            _id: href,
-                            mainEntry: mainEntry || null,
-                            seeAlso: seeAlso.filter(Boolean),
-                            relatedEntries: relatedEntries.filter(Boolean)
-                        };
-            
-                        batchedDocs.push(doc);
-            
-                        if (batchedDocs.length === batchSize || href === httpsMadsXmlHrefs[httpsMadsXmlHrefs.length - 1]) {
-                            await fetch('/api/saveMadsEntries', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({ docs: batchedDocs }),
-                            });
-            
-                            console.log(`Inserted batch of ${batchedDocs.length} documents`);
-                            batchedDocs.length = 0;
-                        }
-                    } catch (error) {
-                        console.error(`Error processing MADS XML for href: ${href}`, error);
                     }
-                }
             
-                setResults(mainEntries);
+                    // Ensure we don't exceed maxItems
+                    validHrefs = validHrefs.slice(0, maxItems);
+                    console.log(`Processing ${validHrefs.length} total entries`);
+            
+                    const httpsMadsXmlHrefs = validHrefs.map(href => href.replace(/^http:/, 'https:'));
+                    const { XMLParser } = require('fast-xml-parser');
+                    const mainEntries = [];
+                    const batchedDocs = [];
+            
+                    for (const href of httpsMadsXmlHrefs) {
+                        try {
+                            const response = await fetch(href);
+                            const xml = await response.text();
+            
+                            const parser = new XMLParser();
+                            const parsedData = parser.parse(xml);
+            
+                            const madsMads = parsedData?.['mads:mads'];
+                            if (!madsMads) {
+                                console.error(`No 'mads:mads' found in href: ${href}`);
+                                continue;
+                            }
+            
+                            const mainEntry = madsMads?.['mads:authority']?.['mads:topic'];
+                            mainEntries.push(mainEntry);
+            
+                            const madsVariants = Array.isArray(madsMads?.['mads:variant'])
+                                ? madsMads['mads:variant']
+                                : madsMads?.['mads:variant'] ? [madsMads['mads:variant']] : [];
+            
+                            const seeAlso = madsVariants
+                                .map(variant => variant['mads:topic'])
+                                .filter(Boolean);
+            
+                            const relatedEntries = [];
+                            if (madsMads?.['mads:related']) {
+                                if (madsMads['mads:related']['mads:topic']) {
+                                    relatedEntries.push(madsMads['mads:related']['mads:topic']);
+                                }
+                                if (madsMads['mads:related']['mads:geographic']) {
+                                    relatedEntries.push(madsMads['mads:related']['mads:geographic']);
+                                }
+                            }
+            
+                            const doc = {
+                                _id: href,
+                                mainEntry: mainEntry || null,
+                                seeAlso: seeAlso.filter(Boolean),
+                                relatedEntries: relatedEntries.filter(Boolean)
+                            };
+            
+                            batchedDocs.push(doc);
+            
+                            if (batchedDocs.length === batchSize || href === httpsMadsXmlHrefs[httpsMadsXmlHrefs.length - 1]) {
+                                await fetch('/api/saveMadsEntries', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({ docs: batchedDocs }),
+                                });
+            
+                                console.log(`Inserted batch of ${batchedDocs.length} documents`);
+                                batchedDocs.length = 0;
+                            }
+                        } catch (error) {
+                            console.error(`Error processing MADS XML for href: ${href}`, error);
+                        }
+                    }
+            
+                    setResults(mainEntries);
+                } catch (error) {
+                    console.error("Error in subject-updates processing:", error);
+                    setResults([]);
+                }
             }
         } catch (error) {
             setError('Error fetching or processing data. Please try again.');
