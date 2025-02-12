@@ -86,7 +86,7 @@ export default async function handler(req, res) {
                 const itemRecordsField = fields[itemRecordsIndex].replace(/^"|"$/g, '').trim();
                 const itemRecordsList = itemRecordsField.split(';').map(item => item.trim());
                 itemCount = itemRecordsList.length;
-                itemRecords = `"${itemRecordsList.join(';')}"`; // Ensure proper quoting for CSV
+                itemRecords = `"${itemRecordsList.join(';')}"`; // Properly quote the field
             }
 
             // Extract Record Number(Order)
@@ -94,16 +94,18 @@ export default async function handler(req, res) {
             if (recordNumberOrderIndex !== -1 && fields[recordNumberOrderIndex]) {
                 const recordNumberOrderField = fields[recordNumberOrderIndex].replace(/^"|"$/g, '').trim();
                 const recordNumberOrderList = recordNumberOrderField.split(';').map(item => item.trim());
-                recordNumberOrder = `"${recordNumberOrderList.join(';')}"`; // Ensure proper quoting for CSV
+                recordNumberOrder = `"${recordNumberOrderList.join(';')}"`; // Properly quote the field
             }
 
-            // If we get here, the record passes all filters
-            let titleHoldsLine = `"${title}",${totalHolds},${itemCount},${itemRecords},${recordNumberOrder}`;
-
-            // Add the first Recv Date, ensuring proper formatting
-            if (hasRecdDate) {
-                titleHoldsLine += `,${firstRecdDate ? `"${firstRecdDate}"` : ''}`;
-            }
+            // Build the output line
+            let titleHoldsLine = [
+                `"${title}"`, // Title
+                totalHolds,   // Holds
+                itemCount,    // Item Count
+                itemRecords,  // Item Records
+                recordNumberOrder, // Record Number(Order)
+                hasRecdDate ? `"${firstRecdDate}"` : '' // Recv Date (quoted if present)
+            ].join(',');
 
             titleHoldsContent.push(titleHoldsLine + '\n');
         });
