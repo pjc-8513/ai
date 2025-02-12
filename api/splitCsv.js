@@ -17,38 +17,29 @@ export default async function handler(req, res) {
         const db = client.db('csvSplitter');
         const chunks = db.collection('chunks');
 
-        // Keep the original header structure, just ensure Recv Date is included
-        const titleHoldsHeader = ['Title,Holds,Item Count,Item Records,Record Number(Order),Recv Date'];
+        // Use the correct header structure based on your CSV format
+        const titleHoldsHeader = ['Title,Holds,Item Count,Item Records,Recv Date'];
         const titleHoldsRows = [];
 
         data.forEach(line => {
             if (!line.trim()) return;
             
-            // Split on commas but respect quotes
-            const matches = line.match(/"[^"]+"|[^,]+/g);
-            if (!matches || matches.length < 5) return;
+            // Use the original working regex pattern
+            const fields = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
+            if (!fields || fields.length < 4) return;
             
-            const id = matches[0].replace(/"/g, '');
-            const title = matches[1].replace(/"/g, '');
-            const holdsField = matches[2].replace(/"/g, '');
-            const publisherDate = matches[3].replace(/"/g, '');
-            
-            // Find the Recv Date - it's after the publisher date
-            const recvDates = matches[4].replace(/"/g, '').split(';');
-            const firstRecvDate = recvDates[0].trim();
-            
-            // Get Order Numbers and Item Numbers
-            const orderNumbers = matches[5].replace(/"/g, '');
-            const itemNumbers = matches.slice(6).join(',').replace(/"/g, '');
-            
-            const totalHolds = (holdsField.match(/";"/g) || []).length + 1;
+            const title = fields[0].replace(/^"|"$/g, '').trim();
+            const holds = parseInt(fields[1].replace(/^"|"$/g, '').trim()) || 0;
+            const itemCount = parseInt(fields[2].replace(/^"|"$/g, '').trim()) || 0;
+            const itemRecords = fields[3].replace(/^"|"$/g, '').trim();
+            const recvDate = fields[4] ? fields[4].replace(/^"|"$/g, '').trim() : '';
             
             // Skip if doesn't meet minimum holds threshold
-            if (totalHolds < minHolds) return;
+            if (holds < minHolds) return;
 
             // Handle date filtering if needed
-            if (dateRange) {
-                const [month, day, year] = firstRecvDate.split('-').map(n => n.padStart(2, '0'));
+            if (dateRange && recvDate) {
+                const [month, day, year] = recvDate.split('-').map(n => n.padStart(2, '0'));
                 const dateFormatted = `${year}${month}${day}`;
                 const startDate = dateRange.start.replace(/-/g, '');
                 const endDate = dateRange.end.replace(/-/g, '');
@@ -60,8 +51,8 @@ export default async function handler(req, res) {
 
             // Create row object for sorting
             titleHoldsRows.push({
-                sortDate: new Date(firstRecvDate.split('-').reverse().join('-')),
-                row: `"${title}",${totalHolds},${itemNumbers.split(';').length},"${itemNumbers}","${orderNumbers}","${firstRecvDate}"`
+                sortDate: recvDate ? new Date(recvDate.split('-').reverse().join('-')) : new Date(0),
+                row: `"${title}",${holds},${itemCount},"${itemRecords}","${recvDate}"`
             });
         });
 
