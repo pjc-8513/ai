@@ -102,9 +102,9 @@ export default async function handler(req, res) {
                 `"${title.replace(/"/g, '""')}"`, // Title
                 totalHolds,   // Holds
                 itemCount,    // Item Count
-                `"${itemRecords.replace(/"/g, '""')}"`,  // Item Records
-                `"${recordNumberOrder.replace(/"/g, '""')}"`, // Record Number(Order)
-                hasRecdDate ? `"${firstRecdDate.replace(/"/g, '""')}"` : '' // Recv Date
+                itemRecords,  // Item Records
+                recordNumberOrder, // Record Number(Order)
+                hasRecdDate ? `${firstRecdDate.replace(/"/g, '""').trim('"')}` : '' // Recv Date
               ].join(',');
         
             titleHoldsContent.push(titleHoldsLine + '\n');
