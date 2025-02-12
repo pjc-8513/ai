@@ -12,15 +12,17 @@ export default async function handler(req, res) {
         const lines = content.split(/\r?\n/);
         const header = lines[0];
         const data = lines.slice(1);
-        
+
         const client = await MongoClient.connect(MONGODB_URI);
         const db = client.db('csvSplitter');
         const chunks = db.collection('chunks');
 
-        const titleHoldsHeader = ['Title,Holds,Item Count,Item Records'];
+        // Define the new header for Title_holds.csv
+        const titleHoldsHeader = ['Title,Holds,Item Count,Item Records,Record Number(Order)'];
         let hasRecdDate = false;
         let hasItemRecords = false;
 
+        // Find indices of relevant columns
         const headerColumns = header.split(',');
         const recdDateIndex = headerColumns.findIndex(col => 
             col.trim().replace(/"/g, '') === 'Recv Date'
@@ -28,9 +30,12 @@ export default async function handler(req, res) {
         const itemRecordsIndex = headerColumns.findIndex(col => 
             col.trim().replace(/"/g, '') === 'Record Number(Item)'
         );
+        const recordNumberOrderIndex = headerColumns.findIndex(col => 
+            col.trim().replace(/"/g, '') === 'Record Number(Order)'
+        );
 
         if (recdDateIndex !== -1) {
-            titleHoldsHeader[0] = 'Title,Holds,Item Count,Item Records,Recv Date';
+            titleHoldsHeader[0] += ',Recv Date';
             hasRecdDate = true;
         }
 
@@ -42,15 +47,15 @@ export default async function handler(req, res) {
 
         data.forEach(line => {
             if (!line.trim()) return;
-            
+
             const fields = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
             if (!fields || fields.length < 3) return;
-            
+
             const title = fields[1].replace(/^"|"$/g, '').trim();
             const holdsField = fields[2].replace(/^"|"$/g, '').trim();
-            
+
             const totalHolds = (holdsField.match(/";"/g) || []).length + 1;
-            
+
             // Skip if doesn't meet minimum holds threshold
             if (totalHolds < minHolds) return;
 
@@ -67,7 +72,7 @@ export default async function handler(req, res) {
                     return;
                 }
             }
-            
+
             // Process item records
             let itemCount = 0;
             let itemRecords = '';
@@ -77,10 +82,16 @@ export default async function handler(req, res) {
                 itemCount = itemRecordsList.length;
                 itemRecords = itemRecordsField;
             }
-            
+
+            // Extract Record Number(Order)
+            let recordNumberOrder = '';
+            if (recordNumberOrderIndex !== -1 && fields[recordNumberOrderIndex]) {
+                recordNumberOrder = fields[recordNumberOrderIndex].replace(/^"|"$/g, '').trim();
+            }
+
             // If we get here, the record passes all filters
-            let titleHoldsLine = `"${title}",${totalHolds},${itemCount},"${itemRecords}"`;
-            
+            let titleHoldsLine = `"${title}",${totalHolds},${itemCount},"${itemRecords}","${recordNumberOrder}"`;
+
             if (hasRecdDate) {
                 if (fields[recdDateIndex]) {
                     const recdDate = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
@@ -89,7 +100,7 @@ export default async function handler(req, res) {
                     titleHoldsLine += ',';
                 }
             }
-            
+
             titleHoldsContent.push(titleHoldsLine + '\n');
         });
 
