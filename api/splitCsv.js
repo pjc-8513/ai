@@ -46,18 +46,18 @@ export default async function handler(req, res) {
 
         data.forEach(line => {
             if (!line.trim()) return;
-
+        
             const fields = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
             if (!fields || fields.length < 3) return;
-
+        
             const title = fields[1].replace(/^"|"$/g, '').trim();
             const holdsField = fields[2].replace(/^"|"$/g, '').trim();
-
+        
             const totalHolds = (holdsField.match(/";"/g) || []).length + 1;
-
+        
             // Skip if doesn't meet minimum holds threshold
             if (totalHolds < minHolds) return;
-
+        
             // Extract the first Recv Date
             let firstRecdDate = '';
             if (hasRecdDate && fields[recdDateIndex]) {
@@ -65,20 +65,20 @@ export default async function handler(req, res) {
                 const recdDates = recdDateField.split(';').map(date => date.trim());
                 firstRecdDate = recdDates[0] || ''; // Use the first date or empty string
             }
-
+        
             // Handle date filtering
             if (dateRange && hasRecdDate && firstRecdDate) {
                 const [month, day, year] = firstRecdDate.split('-');
                 const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
                 const startDate = dateRange.start.replace(/-/g, '');
                 const endDate = dateRange.end.replace(/-/g, '');
-
+        
                 // Skip if date is not within range
                 if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
                     return;
                 }
             }
-
+        
             // Process item records
             let itemCount = 0;
             let itemRecords = '';
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
                 itemCount = itemRecordsList.length;
                 itemRecords = `"${itemRecordsList.join(';')}"`; // Properly quote the field
             }
-
+        
             // Extract Record Number(Order)
             let recordNumberOrder = '';
             if (recordNumberOrderIndex !== -1 && fields[recordNumberOrderIndex]) {
@@ -96,7 +96,7 @@ export default async function handler(req, res) {
                 const recordNumberOrderList = recordNumberOrderField.split(';').map(item => item.trim());
                 recordNumberOrder = `"${recordNumberOrderList.join(';')}"`; // Properly quote the field
             }
-
+        
             // Build the output line
             let titleHoldsLine = [
                 `"${title}"`, // Title
@@ -106,7 +106,7 @@ export default async function handler(req, res) {
                 recordNumberOrder, // Record Number(Order)
                 hasRecdDate ? `"${firstRecdDate}"` : '' // Recv Date (quoted if present)
             ].join(',');
-
+        
             titleHoldsContent.push(titleHoldsLine + '\n');
         });
 
