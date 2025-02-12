@@ -17,9 +17,10 @@ export default async function handler(req, res) {
         const db = client.db('csvSplitter');
         const chunks = db.collection('chunks');
 
-        const titleHoldsHeader = ['Title,Holds,Item Count,Item Records'];
+        const titleHoldsHeader = ['Title,Holds,Item Count,Item Records,Record Number(Order)'];
         let hasRecdDate = false;
         let hasItemRecords = false;
+        let hasOrderRecords = false;
 
         const headerColumns = header.split(',');
         const recdDateIndex = headerColumns.findIndex(col => 
@@ -28,9 +29,12 @@ export default async function handler(req, res) {
         const itemRecordsIndex = headerColumns.findIndex(col => 
             col.trim().replace(/"/g, '') === 'Record Number(Item)'
         );
+        const orderRecordsIndex = headerColumns.findIndex(col => 
+            col.trim().replace(/"/g, '') === 'Record Number(Order)'
+        );
 
         if (recdDateIndex !== -1) {
-            titleHoldsHeader[0] = 'Title,Holds,Item Count,Item Records,Recv Date';
+            titleHoldsHeader[0] += ',Recv Date';
             hasRecdDate = true;
         }
 
@@ -38,7 +42,11 @@ export default async function handler(req, res) {
             hasItemRecords = true;
         }
 
-        const titleHoldsContent = [titleHoldsHeader + '\n'];
+        if (orderRecordsIndex !== -1) {
+            hasOrderRecords = true;
+        }
+
+        const titleHoldsRows = [];
 
         data.forEach(line => {
             if (!line.trim()) return;
@@ -54,44 +62,63 @@ export default async function handler(req, res) {
             // Skip if doesn't meet minimum holds threshold
             if (totalHolds < minHolds) return;
 
-            // Handle date filtering
-            if (dateRange && hasRecdDate && fields[recdDateIndex]) {
-                const recdDate = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
-                const [month, day, year] = recdDate.split('-');
-                const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
-                const startDate = dateRange.start.replace(/-/g, '');
-                const endDate = dateRange.end.replace(/-/g, '');
+            // Process Recv Date - keep only the first one if multiple exist
+            let firstRecdDate = '';
+            if (hasRecdDate && fields[recdDateIndex]) {
+                const recdDates = fields[recdDateIndex].replace(/^"|"$/g, '').trim().split(';');
+                firstRecdDate = recdDates[0].trim();
 
-                // Skip if date is not within range
-                if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
-                    return;
+                // Handle date filtering
+                if (dateRange) {
+                    const [month, day, year] = firstRecdDate.split('-');
+                    const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
+                    const startDate = dateRange.start.replace(/-/g, '');
+                    const endDate = dateRange.end.replace(/-/g, '');
+
+                    // Skip if date is not within range
+                    if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
+                        return;
+                    }
                 }
             }
             
-            // Process item records
+            // Process item records and order records
             let itemCount = 0;
             let itemRecords = '';
+            let orderRecords = '';
+            
             if (hasItemRecords && fields[itemRecordsIndex]) {
                 const itemRecordsField = fields[itemRecordsIndex].replace(/^"|"$/g, '').trim();
                 const itemRecordsList = itemRecordsField.split(';').map(item => item.trim());
                 itemCount = itemRecordsList.length;
                 itemRecords = itemRecordsField;
             }
-            
-            // If we get here, the record passes all filters
-            let titleHoldsLine = `"${title}",${totalHolds},${itemCount},"${itemRecords}"`;
-            
-            if (hasRecdDate) {
-                if (fields[recdDateIndex]) {
-                    const recdDate = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
-                    titleHoldsLine += `,"${recdDate}"`;
-                } else {
-                    titleHoldsLine += ',';
-                }
+
+            if (hasOrderRecords && fields[orderRecordsIndex]) {
+                orderRecords = fields[orderRecordsIndex].replace(/^"|"$/g, '').trim();
             }
             
-            titleHoldsContent.push(titleHoldsLine + '\n');
+            // Build the output line
+            let titleHoldsLine = `"${title}",${totalHolds},${itemCount},"${itemRecords}","${orderRecords}"`;
+            
+            if (hasRecdDate) {
+                titleHoldsLine += `,"${firstRecdDate}"`;
+            }
+            
+            titleHoldsRows.push({
+                line: titleHoldsLine,
+                recdDate: firstRecdDate ? new Date(firstRecdDate.split('-').reverse().join('-')) : new Date(0)
+            });
         });
+
+        // Sort the rows by Recv Date
+        titleHoldsRows.sort((a, b) => a.recdDate - b.recdDate);
+
+        // Combine header and sorted rows
+        const titleHoldsContent = [
+            titleHoldsHeader + '\n',
+            ...titleHoldsRows.map(row => row.line + '\n')
+        ];
 
         // Store the filtered titles_holds file
         await chunks.insertOne({
