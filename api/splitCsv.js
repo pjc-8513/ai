@@ -60,10 +60,11 @@ export default async function handler(req, res) {
             if (totalHolds < minHolds) return;
 
             // Handle date filtering
+            let firstRecdDate = '';
             if (dateRange && hasRecdDate && fields[recdDateIndex]) {
                 const recdDateField = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
                 const recdDates = recdDateField.split(';').map(date => date.trim());
-                const firstRecdDate = recdDates[0]; // Get the first Recv Date
+                firstRecdDate = recdDates[0] || ''; // Use the first date or empty string
 
                 if (firstRecdDate) {
                     const [month, day, year] = firstRecdDate.split('-');
@@ -85,28 +86,23 @@ export default async function handler(req, res) {
                 const itemRecordsField = fields[itemRecordsIndex].replace(/^"|"$/g, '').trim();
                 const itemRecordsList = itemRecordsField.split(';').map(item => item.trim());
                 itemCount = itemRecordsList.length;
-                itemRecords = itemRecordsField;
+                itemRecords = `"${itemRecordsList.join(';')}"`; // Ensure proper quoting for CSV
             }
 
             // Extract Record Number(Order)
             let recordNumberOrder = '';
             if (recordNumberOrderIndex !== -1 && fields[recordNumberOrderIndex]) {
-                recordNumberOrder = fields[recordNumberOrderIndex].replace(/^"|"$/g, '').trim();
-            }
-
-            // Extract the first Recv Date
-            let firstRecdDate = '';
-            if (hasRecdDate && fields[recdDateIndex]) {
-                const recdDateField = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
-                const recdDates = recdDateField.split(';').map(date => date.trim());
-                firstRecdDate = recdDates[0] || ''; // Use the first date or empty string
+                const recordNumberOrderField = fields[recordNumberOrderIndex].replace(/^"|"$/g, '').trim();
+                const recordNumberOrderList = recordNumberOrderField.split(';').map(item => item.trim());
+                recordNumberOrder = `"${recordNumberOrderList.join(';')}"`; // Ensure proper quoting for CSV
             }
 
             // If we get here, the record passes all filters
-            let titleHoldsLine = `"${title}",${totalHolds},${itemCount},"${itemRecords}","${recordNumberOrder}"`;
+            let titleHoldsLine = `"${title}",${totalHolds},${itemCount},${itemRecords},${recordNumberOrder}`;
 
             if (hasRecdDate) {
-                titleHoldsLine += `,"${firstRecdDate}"`;
+                // Add only the first Recv Date, ensuring no extra quotes
+                titleHoldsLine += `,${firstRecdDate ? `"${firstRecdDate}"` : ''}`;
             }
 
             titleHoldsContent.push(titleHoldsLine + '\n');
