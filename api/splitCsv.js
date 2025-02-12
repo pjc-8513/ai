@@ -61,15 +61,20 @@ export default async function handler(req, res) {
 
             // Handle date filtering
             if (dateRange && hasRecdDate && fields[recdDateIndex]) {
-                const recdDate = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
-                const [month, day, year] = recdDate.split('-');
-                const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
-                const startDate = dateRange.start.replace(/-/g, '');
-                const endDate = dateRange.end.replace(/-/g, '');
+                const recdDateField = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
+                const recdDates = recdDateField.split(';').map(date => date.trim());
+                const firstRecdDate = recdDates[0]; // Get the first Recv Date
 
-                // Skip if date is not within range
-                if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
-                    return;
+                if (firstRecdDate) {
+                    const [month, day, year] = firstRecdDate.split('-');
+                    const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
+                    const startDate = dateRange.start.replace(/-/g, '');
+                    const endDate = dateRange.end.replace(/-/g, '');
+
+                    // Skip if date is not within range
+                    if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
+                        return;
+                    }
                 }
             }
 
@@ -89,16 +94,19 @@ export default async function handler(req, res) {
                 recordNumberOrder = fields[recordNumberOrderIndex].replace(/^"|"$/g, '').trim();
             }
 
+            // Extract the first Recv Date
+            let firstRecdDate = '';
+            if (hasRecdDate && fields[recdDateIndex]) {
+                const recdDateField = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
+                const recdDates = recdDateField.split(';').map(date => date.trim());
+                firstRecdDate = recdDates[0] || ''; // Use the first date or empty string
+            }
+
             // If we get here, the record passes all filters
             let titleHoldsLine = `"${title}",${totalHolds},${itemCount},"${itemRecords}","${recordNumberOrder}"`;
 
             if (hasRecdDate) {
-                if (fields[recdDateIndex]) {
-                    const recdDate = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
-                    titleHoldsLine += `,"${recdDate}"`;
-                } else {
-                    titleHoldsLine += ',';
-                }
+                titleHoldsLine += `,"${firstRecdDate}"`;
             }
 
             titleHoldsContent.push(titleHoldsLine + '\n');
