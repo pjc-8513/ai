@@ -17,92 +17,61 @@ export default async function handler(req, res) {
         const db = client.db('csvSplitter');
         const chunks = db.collection('chunks');
 
+        // Keep the original header structure, just ensure Recv Date is included
         const titleHoldsHeader = ['Title,Holds,Item Count,Item Records,Record Number(Order),Recv Date'];
         const titleHoldsRows = [];
-
-        const headerColumns = header.split(',');
-        const recdDateIndex = headerColumns.findIndex(col => 
-            col.trim().replace(/"/g, '') === 'Recv Date'
-        );
-        const itemRecordsIndex = headerColumns.findIndex(col => 
-            col.trim().replace(/"/g, '') === 'Record Number(Item)'
-        );
-        const orderRecordsIndex = headerColumns.findIndex(col => 
-            col.trim().replace(/"/g, '') === 'Record Number(Order)'
-        );
 
         data.forEach(line => {
             if (!line.trim()) return;
             
-            // Use a more robust CSV parsing approach
-            const fields = line.split('"').map((field, index) => 
-                index % 2 === 0 ? field.split(',') : [field]
-            ).flat().filter(field => field !== ',' && field !== '');
+            // Split on commas but respect quotes
+            const matches = line.match(/"[^"]+"|[^,]+/g);
+            if (!matches || matches.length < 5) return;
             
-            if (fields.length < 3) return;
+            const id = matches[0].replace(/"/g, '');
+            const title = matches[1].replace(/"/g, '');
+            const holdsField = matches[2].replace(/"/g, '');
+            const publisherDate = matches[3].replace(/"/g, '');
             
-            const title = fields[1].trim();
-            const holdsField = fields[2].trim();
+            // Find the Recv Date - it's after the publisher date
+            const recvDates = matches[4].replace(/"/g, '').split(';');
+            const firstRecvDate = recvDates[0].trim();
+            
+            // Get Order Numbers and Item Numbers
+            const orderNumbers = matches[5].replace(/"/g, '');
+            const itemNumbers = matches.slice(6).join(',').replace(/"/g, '');
             
             const totalHolds = (holdsField.match(/";"/g) || []).length + 1;
             
             // Skip if doesn't meet minimum holds threshold
             if (totalHolds < minHolds) return;
 
-            // Process Recv Date - keep only the first one
-            let recdDate = '';
-            if (recdDateIndex !== -1 && fields[recdDateIndex]) {
-                const dates = fields[recdDateIndex].split(';')[0].trim();
-                recdDate = dates.replace(/^"|"$/g, '');
+            // Handle date filtering if needed
+            if (dateRange) {
+                const [month, day, year] = firstRecvDate.split('-').map(n => n.padStart(2, '0'));
+                const dateFormatted = `${year}${month}${day}`;
+                const startDate = dateRange.start.replace(/-/g, '');
+                const endDate = dateRange.end.replace(/-/g, '');
 
-                // Handle date filtering
-                if (dateRange) {
-                    const [month, day, year] = recdDate.split('-').map(num => num.padStart(2, '0'));
-                    const recdDateFormatted = `${year}${month}${day}`;
-                    const startDate = dateRange.start.replace(/-/g, '');
-                    const endDate = dateRange.end.replace(/-/g, '');
-
-                    if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
-                        return;
-                    }
+                if (dateFormatted < startDate || dateFormatted > endDate) {
+                    return;
                 }
             }
-            
-            // Process item records
-            let itemCount = 0;
-            let itemRecords = '';
-            if (itemRecordsIndex !== -1 && fields[itemRecordsIndex]) {
-                itemRecords = fields[itemRecordsIndex].replace(/^"|"$/g, '').trim();
-                itemCount = itemRecords.split(';').length;
-            }
 
-            // Process order records
-            let orderRecords = '';
-            if (orderRecordsIndex !== -1 && fields[orderRecordsIndex]) {
-                orderRecords = fields[orderRecordsIndex].replace(/^"|"$/g, '').trim();
-            }
-            
-            // Create the row object for sorting
+            // Create row object for sorting
             titleHoldsRows.push({
-                title: `"${title}"`,
-                holds: totalHolds,
-                itemCount,
-                itemRecords: `"${itemRecords}"`,
-                orderRecords: `"${orderRecords}"`,
-                recdDate,
-                sortDate: recdDate ? new Date(recdDate.split('-').reverse().join('-')) : new Date(0)
+                sortDate: new Date(firstRecvDate.split('-').reverse().join('-')),
+                row: `"${title}",${totalHolds},${itemNumbers.split(';').length},"${itemNumbers}","${orderNumbers}","${firstRecvDate}"`
             });
         });
 
-        // Sort rows by Recv Date
+        // Sort by Recv Date
         titleHoldsRows.sort((a, b) => a.sortDate - b.sortDate);
 
-        // Build the final content with proper CSV formatting
+        // Combine header and sorted rows
         const titleHoldsContent = [
             titleHoldsHeader + '\n',
-            ...titleHoldsRows.map(row => 
-                `${row.title},${row.holds},${row.itemCount},${row.itemRecords},${row.orderRecords},${row.recdDate}\n`
-            )
+            ...titleHoldsRows.map(row => row.row + '\n')
         ];
 
         // Store the filtered titles_holds file
