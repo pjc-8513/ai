@@ -18,7 +18,7 @@ export default async function handler(req, res) {
         const chunks = db.collection('chunks');
 
         // Define the new header for Title_holds.csv
-        const titleHoldsHeader = ['Title,Holds,Item Count,Item Records,Record Number(Order)'];
+        const titleHoldsHeader = ['Title,Holds,Item Count,Item Records,Record Number(Order),Recv Date'];
         let hasRecdDate = false;
         let hasItemRecords = false;
 
@@ -35,7 +35,6 @@ export default async function handler(req, res) {
         );
 
         if (recdDateIndex !== -1) {
-            titleHoldsHeader[0] += ',Recv Date';
             hasRecdDate = true;
         }
 
@@ -59,23 +58,24 @@ export default async function handler(req, res) {
             // Skip if doesn't meet minimum holds threshold
             if (totalHolds < minHolds) return;
 
-            // Handle date filtering
+            // Extract the first Recv Date
             let firstRecdDate = '';
-            if (dateRange && hasRecdDate && fields[recdDateIndex]) {
+            if (hasRecdDate && fields[recdDateIndex]) {
                 const recdDateField = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
                 const recdDates = recdDateField.split(';').map(date => date.trim());
                 firstRecdDate = recdDates[0] || ''; // Use the first date or empty string
+            }
 
-                if (firstRecdDate) {
-                    const [month, day, year] = firstRecdDate.split('-');
-                    const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
-                    const startDate = dateRange.start.replace(/-/g, '');
-                    const endDate = dateRange.end.replace(/-/g, '');
+            // Handle date filtering
+            if (dateRange && hasRecdDate && firstRecdDate) {
+                const [month, day, year] = firstRecdDate.split('-');
+                const recdDateFormatted = `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
+                const startDate = dateRange.start.replace(/-/g, '');
+                const endDate = dateRange.end.replace(/-/g, '');
 
-                    // Skip if date is not within range
-                    if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
-                        return;
-                    }
+                // Skip if date is not within range
+                if (recdDateFormatted < startDate || recdDateFormatted > endDate) {
+                    return;
                 }
             }
 
@@ -100,8 +100,8 @@ export default async function handler(req, res) {
             // If we get here, the record passes all filters
             let titleHoldsLine = `"${title}",${totalHolds},${itemCount},${itemRecords},${recordNumberOrder}`;
 
+            // Add the first Recv Date, ensuring proper formatting
             if (hasRecdDate) {
-                // Add only the first Recv Date, ensuring no extra quotes
                 titleHoldsLine += `,${firstRecdDate ? `"${firstRecdDate}"` : ''}`;
             }
 
