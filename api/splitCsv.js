@@ -65,6 +65,7 @@ export default async function handler(req, res) {
               const recdDates = recdDateField.split(';').map(date => date.trim());
               firstRecdDate = recdDates.shift() || ''; // Use the first date or empty string
             }
+            console.log(firstRecdDate);
         
             // Handle date filtering
             if (dateRange && hasRecdDate && firstRecdDate) {
