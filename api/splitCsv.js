@@ -99,13 +99,13 @@ export default async function handler(req, res) {
         
             // Build the output line
             let titleHoldsLine = [
-                `"${title}"`, // Title
+                `"${title.replace(/"/g, '""')}"`, // Title
                 totalHolds,   // Holds
                 itemCount,    // Item Count
-                itemRecords,  // Item Records
-                recordNumberOrder, // Record Number(Order)
-                hasRecdDate ? `"${firstRecdDate}"` : '' // Recv Date (quoted if present)
-            ].join(',');
+                `"${itemRecords.replace(/"/g, '""')}"`,  // Item Records
+                `"${recordNumberOrder.replace(/"/g, '""')}"`, // Record Number(Order)
+                hasRecdDate ? `"${firstRecdDate.replace(/"/g, '""')}"` : '' // Recv Date
+              ].join(',');
         
             titleHoldsContent.push(titleHoldsLine + '\n');
         });
