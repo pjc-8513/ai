@@ -61,9 +61,9 @@ export default async function handler(req, res) {
             // Extract the first Recv Date
             let firstRecdDate = '';
             if (hasRecdDate && fields[recdDateIndex]) {
-                const recdDateField = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
-                const recdDates = recdDateField.split(';').map(date => date.trim());
-                firstRecdDate = recdDates[0] || ''; // Use the first date or empty string
+              const recdDateField = fields[recdDateIndex].replace(/^"|"$/g, '').trim();
+              const recdDates = recdDateField.split(';').map(date => date.trim());
+              firstRecdDate = recdDates.shift() || ''; // Use the first date or empty string
             }
         
             // Handle date filtering
