@@ -67,7 +67,7 @@ export default async function handler(req, res) {
             }
             firstRecdDate = firstRecdDate.replace(/"/g, '').trim();
             // console.log(firstRecdDate);
-            console.log(firstRecdDate.charCodeAt(firstRecdDate.length - 1));
+            // console.log(firstRecdDate.charCodeAt(firstRecdDate.length - 1));
         
             // Handle date filtering
             if (dateRange && hasRecdDate && firstRecdDate) {
@@ -112,6 +112,22 @@ export default async function handler(req, res) {
         
             titleHoldsContent.push(titleHoldsLine + '\n');
         });
+
+        // sort by Recvd Date
+        titleHoldsContent.sort((a, b) => {
+            const dateA = a.split(',')[5].trim().replace(/^"|"$/g, '');
+            const dateB = b.split(',')[5].trim().replace(/^"|"$/g, '');
+          
+            if (!dateA || !dateB) return 0; // Ignore empty dates
+          
+            const [monthA, dayA, yearA] = dateA.split('-');
+            const [monthB, dayB, yearB] = dateB.split('-');
+          
+            const dateObjA = new Date(yearA, monthA - 1, dayA);
+            const dateObjB = new Date(yearB, monthB - 1, dayB);
+          
+            return dateObjA - dateObjB;
+          });
 
         // Store the filtered titles_holds file
         await chunks.insertOne({
