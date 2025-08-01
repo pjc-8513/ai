@@ -11,27 +11,114 @@ function App() {
     const [image, setImage] = useState(null);
     const [mode, setMode] = useState('translator');
     const [files, setFiles] = useState([]);
-    // First, add the state variable near the other useState declarations
     const [minHolds, setMinHolds] = useState(0);
-    // Add these state variables with the other useState declarations
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const fileInputRef = useRef(null);
-    // Add these state variables for Authorities mode
     const [number, setNumber] = useState('');
     const [results, setResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-    //Drop down menu
-    const [activityStream, setActivityStream] = useState('label-updates'); // Default to label-updates
+    const [activityStream, setActivityStream] = useState('label-updates');
     
+    // New state for Cutter number functionality
+    const [cutterText, setCutterText] = useState('');
+    const [cutterResult, setCutterResult] = useState('');
+    const [cutterTable, setCutterTable] = useState('');
 
     const activityStreamOptions = [
         { value: 'label-updates', label: 'Label Updates' },
         { value: 'subject-updates', label: 'Subject Updates' },
         { value: 'subject-adds', label: 'Subject Additions' },
         { value: 'subject-removals', label: 'Subject Removals/Deprecated' },
-      ];
+    ];
 
+    // Cutter number functions (adapted from your original code)
+    const sacaAcentos = (nombre) => {
+        let result = nombre;
+        const replacements = {
+            "Á": "A", "É": "E", "Í": "I", "Ó": "O", "Ú": "U", "Ü": "U",
+            "á": "A", "é": "E", "í": "I", "ó": "O", "ú": "U",
+            "ä": "A", "Ä": "A", "ë": "E", "Ë": "E", "ï": "I", "Ï": "I",
+            "ö": "O", "Ö": "O", "ü": "U", "Ü": "U", "Ç": "C",
+            "à": "A", "À": "A", "è": "E", "È": "E", "ì": "I", "Ì": "I",
+            "ò": "O", "Ò": "O", "ù": "U", "Ù": "U",
+            "â": "A", "Â": "A", "ê": "E", "Ê": "E", "î": "I", "Î": "I",
+            "ô": "O", "Ô": "O", "û": "U", "Û": "U", "ñ": "NZ"
+        };
+        
+        Object.keys(replacements).forEach(key => {
+            result = result.replace(new RegExp(key, 'g'), replacements[key]);
+        });
+        
+        return result;
+    };
+
+    const generateCutterNumber = () => {
+        if (!cutterText.trim()) {
+            setError('Please enter text to generate a Cutter number');
+            return;
+        }
+
+        if (!cutterTable.trim()) {
+            setError('Please load the Cutter table first');
+            return;
+        }
+
+        try {
+            let inputtxt = cutterText;
+            const tblc = cutterTable.split("\n");
+            let cutter = '';
+
+            inputtxt = sacaAcentos(inputtxt);
+            inputtxt = inputtxt.replace(" ", "");
+            inputtxt = inputtxt.trim();
+            inputtxt = inputtxt.toLowerCase();
+
+            for (let j = 0; j < (tblc.length - 1); j++) {
+                if (inputtxt >= tblc[j].slice(4) && inputtxt < tblc[j + 1].slice(4)) {
+                    if (inputtxt[0] === 'a' || inputtxt[0] === 'e' || inputtxt[0] === 'i' || 
+                        inputtxt[0] === 'o' || inputtxt[0] === 'u') {
+                        cutter = inputtxt.slice(0, 2).toUpperCase() + tblc[j].slice(0, 3);
+                    } else if (inputtxt[0] === 's' && inputtxt[1] !== 'c') {
+                        cutter = inputtxt.slice(0, 2).toUpperCase() + tblc[j].slice(0, 3);
+                    } else if (inputtxt[0] === 's' && inputtxt[1] === 'c') {
+                        cutter = inputtxt.slice(0, 3).toUpperCase() + tblc[j].slice(0, 3);
+                    } else {
+                        cutter = inputtxt[0].toUpperCase() + tblc[j].slice(0, 3);
+                    }
+                    cutter = cutter.replace(/0/g, "");
+                    break;
+                }
+            }
+
+            setCutterResult(cutter);
+            setError('');
+        } catch (err) {
+            setError('Error generating Cutter number: ' + err.message);
+        }
+    };
+
+    const handleCutterTableUpload = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            if (!file.name.endsWith('.txt')) {
+                setError('Please upload a .txt file');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setCutterTable(e.target.result);
+                setError('');
+            };
+            reader.onerror = () => {
+                setError('Error reading file');
+            };
+            reader.readAsText(file);
+        }
+    };
+
+    // ... (keep all your existing functions: handleAnalyze, handleFileUpload, etc.)
     const handleAnalyze = async () => {
         setLoading(true);
         setOutputText('');
@@ -109,12 +196,10 @@ function App() {
             }
           };
 
-    // Then, update the handleFileUpload function to include minHolds in the request
     const handleFileUpload = async (event) => {
         setError(null);
         setFiles([]);
 
-        // Clear any existing chunks first
         try {
             const clearResponse = await fetch('/api/clearChunks', {
                 method: 'POST',
@@ -124,7 +209,6 @@ function App() {
             }
         } catch (err) {
             console.error('Error clearing chunks:', err);
-            // Continue anyway - not a fatal error
         }
 
         const file = event.target.files[0];
@@ -181,7 +265,6 @@ function App() {
 
     const handleClearAll = async () => {
         try {
-            // Clear the files from MongoDB
             const response = await fetch('/api/clearChunks', {
                 method: 'POST',
             });
@@ -190,7 +273,6 @@ function App() {
                 throw new Error('Failed to clear chunks');
             }
 
-            // Clear the UI
             setFiles([]);
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
@@ -255,11 +337,10 @@ async function checkExistingInMongoDB(hrefs) {
         return data.existingIds;
     } catch (error) {
         console.error("Error checking MongoDB:", error);
-        return hrefs; // On error, assume all exist to prevent duplicates
+        return hrefs;
     }
 }
 
-    // Add this function for handling label search
     const handleFindLabels = async () => {
         setIsLoading(true);
         setError('');
@@ -273,7 +354,6 @@ async function checkExistingInMongoDB(hrefs) {
 
                 const personalNameLabels = data.orderedItems
                     .filter(item => {
-                        // Check if the item has object.type array containing "madsrdf:PersonalName"
                         return item.object?.type?.includes('madsrdf:PersonalName');
                     })
                     .map(item => {
@@ -294,7 +374,6 @@ async function checkExistingInMongoDB(hrefs) {
                 const maxItems = 25;
                 const batchSize = 10;
                 
-                // Get the last successfully processed page from localStorage, or use the provided number
                 let currentPage = parseInt(localStorage.getItem('lastProcessedPage')) || number;
                 console.log(`Starting from page ${currentPage}`);
                 
@@ -302,18 +381,16 @@ async function checkExistingInMongoDB(hrefs) {
                 let processedUrls = new Set();
             
                 try {
-                    let pagesWithNoNewEntries = 0;  // Counter for consecutive pages with no new entries
-                    const MAX_EMPTY_PAGES = 5;  // Maximum number of consecutive empty pages before giving up
+                    let pagesWithNoNewEntries = 0;
+                    const MAX_EMPTY_PAGES = 5;
                     
                     while (validHrefs.length < maxItems && nextPageUrl && pagesWithNoNewEntries < MAX_EMPTY_PAGES) {
                         console.log(`Fetching page ${currentPage}...`);
                         const response = await fetch(nextPageUrl);
                         const data = await response.json();
             
-                        // Update the next page URL and increment our counter
                         nextPageUrl = data.next?.replace(/^http:/, 'https:');
                         
-                        // Filter and extract hrefs from current page
                         const pageMadsXmlHrefs = data.orderedItems
                             .filter(item => (
                                 item.type === 'Update' &&
@@ -333,10 +410,8 @@ async function checkExistingInMongoDB(hrefs) {
                             .filter(Boolean)
                             .filter(href => !processedUrls.has(href));
             
-                        // Add these URLs to our processed set
                         pageMadsXmlHrefs.forEach(href => processedUrls.add(href));
             
-                        // Check which hrefs don't exist in MongoDB
                         const existingIds = await checkExistingInMongoDB(pageMadsXmlHrefs);
                         const newHrefs = pageMadsXmlHrefs.filter(href => !existingIds.includes(href));
             
@@ -344,25 +419,21 @@ async function checkExistingInMongoDB(hrefs) {
                             pagesWithNoNewEntries++;
                             console.log(`No new entries on page ${currentPage}. Empty pages: ${pagesWithNoNewEntries}`);
                         } else {
-                            pagesWithNoNewEntries = 0;  // Reset counter when we find new entries
-                            // Add new hrefs to our valid list
+                            pagesWithNoNewEntries = 0;
                             validHrefs = validHrefs.concat(newHrefs);
                             console.log(`Found ${newHrefs.length} new entries from page ${currentPage}. Total valid: ${validHrefs.length}`);
                         }
             
                         currentPage++;
                         
-                        // If we don't have enough items and there's no next page
                         if (validHrefs.length < maxItems && !nextPageUrl) {
                             console.log(`Warning: Only found ${validHrefs.length} valid items out of requested ${maxItems}`);
                             break;
                         }
                     }
             
-                    // Store the last successfully processed page
                     localStorage.setItem('lastProcessedPage', currentPage.toString());
                     
-                    // Ensure we don't exceed maxItems
                     validHrefs = validHrefs.slice(0, maxItems);
                     console.log(`Processing ${validHrefs.length} total entries from pages ${number} to ${currentPage}`);
             
@@ -468,7 +539,7 @@ async function checkExistingInMongoDB(hrefs) {
                             AI Librarian
                         </h1>
         
-                        <div className="flex justify-center gap-4 mb-6">
+                        <div className="flex justify-center gap-4 mb-6 flex-wrap">
                             <button
                                 onClick={() => {
                                     setMode('translator');
@@ -536,6 +607,24 @@ async function checkExistingInMongoDB(hrefs) {
                             >
                                 Authorities
                             </button>
+                            <button
+                                onClick={() => {
+                                    setMode('cutter');
+                                    setError('');
+                                    setOutputText('');
+                                    setImage(null);
+                                    setFiles([]);
+                                    setCutterText('');
+                                    setCutterResult('');
+                                }}
+                                className={`px-4 py-2 rounded-lg font-medium ${
+                                    mode === 'cutter'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                            >
+                                Cutter Number
+                            </button>
                         </div>
         
                         {error && (
@@ -547,6 +636,71 @@ async function checkExistingInMongoDB(hrefs) {
                                 </div>
                             </div>
                         )}
+
+                {mode === 'cutter' && (
+                    <div className="space-y-6">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Upload Cutter Table (tablacutter-js.txt)
+                                </label>
+                                <input
+                                    type="file"
+                                    accept=".txt"
+                                    onChange={handleCutterTableUpload}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                {cutterTable && (
+                                    <p className="text-sm text-green-600 mt-1">
+                                        ✓ Cutter table loaded ({cutterTable.split('\n').length} entries)
+                                    </p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Enter Text for Cutter Number
+                                </label>
+                                <input
+                                    type="text"
+                                    value={cutterText}
+                                    onChange={(e) => setCutterText(e.target.value)}
+                                    placeholder="Enter author name or title..."
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                            </div>
+
+                            <button
+                                onClick={generateCutterNumber}
+                                disabled={!cutterText.trim() || !cutterTable.trim()}
+                                className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Generate Cutter Number
+                            </button>
+
+                            {cutterResult && (
+                                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                    <h3 className="text-lg font-medium text-green-800 mb-2">
+                                        Cutter Number Generated:
+                                    </h3>
+                                    <div className="text-2xl font-mono font-bold text-green-900">
+                                        {cutterResult}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                                <h4 className="font-medium text-gray-800 mb-2">How it works:</h4>
+                                <ul className="text-sm text-gray-600 space-y-1">
+                                    <li>• Removes accents and special characters</li>
+                                    <li>• Applies specific rules for vowels and consonants</li>
+                                    <li>• Uses lookup table for number assignment</li>
+                                    <li>• Formats according to library standards</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {mode === 'csv' && (
                     <div>
