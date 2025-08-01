@@ -876,7 +876,7 @@ async function checkExistingInMongoDB(hrefs) {
                 </div>
                 )}
 
-                    {mode !== 'csv' && mode !== 'authorities' && (
+                    {mode !== 'csv' && mode !== 'authorities' && mode !== 'cutter' && (
                         <div className="space-y-6">
                             <textarea
                                 value={inputText}
