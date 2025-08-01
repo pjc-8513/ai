@@ -25,6 +25,24 @@ function App() {
     const [cutterResult, setCutterResult] = useState('');
     const [cutterTable, setCutterTable] = useState('');
 
+    useEffect(() => {
+    if (mode === 'cutter' && !cutterTable) {
+        fetch('/tablacutter-js.txt')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Default cutter table not found');
+                }
+                return response.text();
+            })
+            .then(text => {
+                setCutterTable(text);
+            })
+            .catch(err => {
+                setError('Error loading default cutter table: ' + err.message);
+            });
+    }
+}, [mode, cutterTable]);
+
     const activityStreamOptions = [
         { value: 'label-updates', label: 'Label Updates' },
         { value: 'subject-updates', label: 'Subject Updates' },
@@ -672,7 +690,7 @@ async function checkExistingInMongoDB(hrefs) {
 
                             <button
                                 onClick={generateCutterNumber}
-                                disabled={!cutterText.trim() || !cutterTable.trim()}
+                                disabled={!cutterText.trim()}
                                 className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Generate Cutter Number
